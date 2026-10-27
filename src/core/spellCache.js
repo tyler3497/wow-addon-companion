@@ -31,6 +31,16 @@
 const INFO_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const FAILED_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
+// Wowhead's tooltip endpoint form. Failures are tagged with
+// the endpoint form that produced them; a failure recorded
+// under an older form (e.g. the pre-2026-10-27 `spell=<id>`
+// form, which Wowhead now 404s) is retried immediately
+// instead of being served as failed-fresh for 7 days.
+const SPELL_ENDPOINT = 'slash';
+function failureNeedsRetry(entry) {
+  return !!(entry && entry.failed && entry.endpoint !== SPELL_ENDPOINT);
+}
+
 function entryStatus(entry, now, buildVersion) {
   if (!entry || typeof entry !== 'object') return 'missing';
   const fetchedAt = Number(entry.fetchedAt);
@@ -49,4 +59,4 @@ function publicInfo(entry) {
   return { name: entry.name || null, icon: entry.icon || null, desc: entry.desc || null };
 }
 
-module.exports = { INFO_TTL_MS, FAILED_TTL_MS, entryStatus, publicInfo };
+module.exports = { INFO_TTL_MS, FAILED_TTL_MS, SPELL_ENDPOINT, failureNeedsRetry, entryStatus, publicInfo };

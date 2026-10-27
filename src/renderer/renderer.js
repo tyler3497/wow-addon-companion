@@ -520,8 +520,10 @@ async function showSpellTip(a, e) {
   else if (spellInfoCache.has(id)) {
     const info = spellInfoCache.get(id);
     el.innerHTML = tipHtmlFor(info.name || name, id, info.desc, info.desc ? 'From Wowhead' : null);
+  } else if (failedSpellIds.has(String(id))) {
+    el.innerHTML = tipHtmlFor(name, id, "Couldn't load a description from Wowhead right now. Click to open this spell on Wowhead.", null);
   } else {
-    el.innerHTML = tipHtmlFor(name, id, null, null);
+    el.innerHTML = tipHtmlFor(name, id, 'Loading description from Wowhead…', null);
     if (api.lookupSpell) {
       try {
         const info = await api.lookupSpell(id, (typeof deathResult !== 'undefined' && deathResult) ? deathResult.buildVersion : null);
@@ -531,8 +533,18 @@ async function showSpellTip(a, e) {
           if (el.style.display !== 'none' && document.querySelector('.spell-link:hover') === a) {
             el.innerHTML = tipHtmlFor(info.name || name, id, info.desc, info.desc ? 'From Wowhead' : null);
           }
+        } else {
+          failedSpellIds.add(String(id));
+          if (el.style.display !== 'none' && document.querySelector('.spell-link:hover') === a) {
+            el.innerHTML = tipHtmlFor(name, id, "Couldn't load a description from Wowhead right now. Click to open this spell on Wowhead.", null);
+          }
         }
-      } catch (_) { /* keep the fallback text */ }
+      } catch (_) {
+        failedSpellIds.add(String(id));
+        if (el.style.display !== 'none' && document.querySelector('.spell-link:hover') === a) {
+          el.innerHTML = tipHtmlFor(name, id, "Couldn't load a description from Wowhead right now. Click to open this spell on Wowhead.", null);
+        }
+      }
     }
   }
   el.style.display = 'block';
@@ -603,7 +615,7 @@ function deathDetailHtml(d) {
       <p class="muted small">${d.defensives.classKnown ? `Spec from log: ${esc(d.defensives.playerClass)}${d.playerSpec ? ` • ${esc(d.playerSpec)}` : ''} — the available/on-cooldown lists are filtered to that spec where the database knows a restriction.` : 'Class not found in the log (no COMBATANT_INFO for this player), so only defensives they used or had up are shown.'} "Available" is an estimate: talents can change cooldowns, and a wipe may reset them. A defensive actually cast or active in the log is always shown, even if it falls outside the spec list.</p>
       <p><b>Active at death:</b></p>${defHtml}
       <h4>Talents at pull start (${(d.talents || []).length})</h4>
-      ${(d.talents || []).length ? `<p class="muted small">Build from COMBATANT_INFO at the start of this pull. Names and icons come from Wowhead lookups; a talent not yet looked up shows its spell ID until the prefetch finishes.</p>
+      ${(d.talents || []).length ? `<details><summary>Show talents (${(d.talents || []).length})</summary><p class="muted small">Build from COMBATANT_INFO at the start of this pull. Names and icons come from Wowhead lookups; a talent not yet looked up shows its spell ID until the prefetch finishes.</p>
       <ul class="aura-list">${d.talents.map((t) => {
         const info = spellInfoCache.get(String(t.spellId));
         const label = info && info.name ? info.name : `Talent ${t.spellId}`;
@@ -617,7 +629,7 @@ function deathDetailHtml(d) {
           const label = info && info.name ? info.name : `Talent ${t.spellId}`;
           return `<a href="#" class="spell-link talent-tile" data-spell-id="${esc(t.spellId)}" data-spell-name="${esc(label)}" title="${esc(label)}">${spellIconHtml(t.spellId, 36)}${t.rank > 1 ? `<span class="talent-rank">${t.rank}</span>` : ''}</a>`;
         }).join('')}</div>
-      </details>`
+      </details></details>`
         : '<p class="muted small">No talent data in this log for this player (no COMBATANT_INFO line for them).</p>'}
       <h4>All auras active at death (${d.activeAuras.length})</h4>
       ${d.activeAuras.length ? `<ul class="aura-list">${d.activeAuras.map((a) => `<li><span class="badge ${a.type === 'DEBUFF' ? 'bad' : 'good'}">${a.type === 'DEBUFF' ? 'Debuff' : 'Buff'}</span> ${spellLinkHtml(a.name, a.spellId)} <span class="muted small">from ${esc(a.source || 'unknown')} · spell ${esc(a.spellId)}</span></li>`).join('')}</ul>` : '<p class="muted small">None.</p>'}

@@ -69,9 +69,11 @@ https://github.com/tyler3497/wow-gear-audit
   Melee hits carry no victim HP in the log, so those rows
   show no bar, and the whole thing needs advanced logging on.
 - Talents at pull start: each death shows the dead player's
-  talent build from COMBATANT_INFO (spell IDs + ranks, with
-  names and icons from Wowhead lookups), plus a collapsible
-  talent-tree view (hidden by default) that shows the build
+  talent build from COMBATANT_INFO, collapsed behind a
+  "Show talents (N)" line by default (the full list took up
+  too much space). Expanding it shows spell IDs + ranks,
+  with names and icons from Wowhead lookups, plus a
+  collapsible talent-tree view that shows the build
   as a grid of talent icons. The grid is in log order, not
   the in-game tree geometry — the log records which talents
   were picked, not where each node sits in the tree.

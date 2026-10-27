@@ -259,7 +259,7 @@ function createAnalyzer(opts) {
         onCooldown.push({ id: d.id, name: d.name, cls: d.cls, cooldownSec: cd, desc: d.desc || null, state: 'cooldown', secondsLeft: Math.ceil((last + cd * 1000 - deathMs) / 1000), secondsSinceCast: Math.round((deathMs - last) / 1000) });
       }
     }
-    return { active, available, onCooldown, playerClass: cls, playerSpec: spec, classKnown: !!cls };
+    return { active, available, onCooldown, playerClass: cls, playerSpec: spec, specId: specId || null, classKnown: !!cls };
   }
 
   // "What would have saved you": for each defensive that was
@@ -409,6 +409,7 @@ function createAnalyzer(opts) {
         player: name, guid,
         playerClass: defensives.playerClass,
         playerSpec: defensives.playerSpec || null,
+        specId: defensives.specId || null,
         tsMs: ms, tsIso: new Date(ms).toISOString(), timeLabel: label, dateLabel,
         pullIndex: currentPull ? currentPull.index : null,
         encounterName: currentPull ? currentPull.name : null,

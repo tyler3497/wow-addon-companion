@@ -283,7 +283,7 @@ ipcMain.handle('death:open-spell', (_e, spellId) => {
 // same spell share one in-flight fetch. A failure returns
 // null (never a guessed description); if a stale entry
 // exists, it is served instead of nothing.
-const { entryStatus, publicInfo } = require('./core/spellCache');
+const { entryStatus, publicInfo, SPELL_ENDPOINT, failureNeedsRetry } = require('./core/spellCache');
 const spellLookupPending = new Map(); // spellId -> Promise
 ipcMain.handle('spell:lookup', async (_e, spellId, buildVersion) => {
   if (!spellId || spellId === '0') return null;
@@ -291,7 +291,7 @@ ipcMain.handle('spell:lookup', async (_e, spellId, buildVersion) => {
   const key = String(spellId);
   const status = entryStatus(settings.spellInfo[key], Date.now(), buildVersion || null);
   if (status === 'fresh') return publicInfo(settings.spellInfo[key]);
-  if (status === 'failed-fresh') return null;
+  if (status === 'failed-fresh' && !failureNeedsRetry(settings.spellInfo[key])) return null;
   if (spellLookupPending.has(key)) return spellLookupPending.get(key);
   const https = require('https');
   const fetchJson = (url) => new Promise((resolve) => {
@@ -304,11 +304,11 @@ ipcMain.handle('spell:lookup', async (_e, spellId, buildVersion) => {
     req.setTimeout(8000, () => { req.destroy(); resolve(null); });
   });
   const task = (async () => {
-    const data = await fetchJson(`https://nether.wowhead.com/tooltip/spell=${spellId}?dataEnv=1`);
+    const data = await fetchJson(`https://nether.wowhead.com/tooltip/spell/${spellId}?dataEnv=1`);
     if (!data || !data.name) {
       const prev = settings.spellInfo[key];
       if (prev && !prev.failed) return publicInfo(prev); // network hiccup: serve stale, keep its age
-      settings.spellInfo[key] = { failed: true, fetchedAt: Date.now() };
+      settings.spellInfo[key] = { failed: true, fetchedAt: Date.now(), endpoint: SPELL_ENDPOINT };
       saveSettings();
       return null;
     }
