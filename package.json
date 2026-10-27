@@ -18,7 +18,8 @@
     "pack:win": "electron-packager . GearAudit --platform=win32 --arch=x64 --out=dist --overwrite --prune=true",
     "start": "electron .",
     "test:core": "node src/core/updater.test.js",
-    "dist:win": "electron-builder --win nsis --publish never"
+    "dist:win": "electron-builder --win nsis --publish never",
+    "dist:linux": "electron-builder --linux AppImage --publish never"
   },
   "version": "0.1.1",
   "build": {
@@ -52,6 +53,17 @@
       "owner": "tyler3497",
       "repo": "wow-addon-companion",
       "releaseType": "release"
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "category": "Utility"
     }
   }
 }
