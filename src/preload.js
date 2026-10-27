@@ -16,7 +16,7 @@ contextBridge.exposeInMainWorld('gearAudit', {
   pickDeathLog: () => ipcRenderer.invoke('dialog:pick-log'),
   parseDeathLog: (filePath, windowSec) => ipcRenderer.invoke('death:parse-log', filePath, windowSec),
   openSpellPage: (spellId) => ipcRenderer.invoke('death:open-spell', spellId),
-  lookupSpell: (spellId) => ipcRenderer.invoke('spell:lookup', spellId),
+  lookupSpell: (spellId, buildVersion) => ipcRenderer.invoke('spell:lookup', spellId, buildVersion),
   onDeathProgress: (cb) => ipcRenderer.on('death:progress', (_e, p) => cb(p)),
   // Self-update
   appCurrentVersion: () => ipcRenderer.invoke('app-update:current'),

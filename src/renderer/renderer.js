@@ -390,7 +390,8 @@ async function prefetchDeathSpells(death, key) {
   const todo = [...ids].filter((id) => !spellInfoCache.has(id) && !failedSpellIds.has(id));
   for (let i = 0; i < todo.length; i += 8) {
     const batch = todo.slice(i, i + 8);
-    const results = await Promise.allSettled(batch.map((id) => api.lookupSpell(id)));
+    const buildVersion = (typeof deathResult !== 'undefined' && deathResult) ? deathResult.buildVersion : null;
+    const results = await Promise.allSettled(batch.map((id) => api.lookupSpell(id, buildVersion)));
     results.forEach((r, j) => {
       if (r.status === 'fulfilled' && r.value) spellInfoCache.set(batch[j], r.value);
       else failedSpellIds.add(batch[j]);
@@ -463,7 +464,7 @@ async function showSpellTip(a, e) {
     el.innerHTML = tipHtmlFor(name, id, null, null);
     if (api.lookupSpell) {
       try {
-        const info = await api.lookupSpell(id);
+        const info = await api.lookupSpell(id, (typeof deathResult !== 'undefined' && deathResult) ? deathResult.buildVersion : null);
         if (info) {
           spellInfoCache.set(String(id), info);
           // If the mouse is still on this spell, refresh the tip.

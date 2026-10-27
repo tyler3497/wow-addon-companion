@@ -192,13 +192,25 @@ ipcMain.handle('death:open-spell', (_e, spellId) => {
 // Verified 2026-10-27: the www.wowhead.com tooltip URL 404s,
 // but nether.wowhead.com/tooltip/spell=<id>?dataEnv=1 returns
 // JSON (name, icon, tooltip) — e.g. Divine Shield (642).
-// Results are cached in settings so a spell is only fetched
-// once; a failure returns null (never a guessed description)
-// and is not cached, so it can be retried later.
-ipcMain.handle('spell:lookup', async (_e, spellId) => {
+// Caching (see src/core/spellCache.js): a spell is fetched
+// at most once per 30 days, or once when the game build
+// changes (the dirty flag — patches are when spell info can
+// change), and only when it is actually displayed. Failed
+// lookups are cached for 7 days so a missing spell is not
+// re-requested on every hover. Concurrent requests for the
+// same spell share one in-flight fetch. A failure returns
+// null (never a guessed description); if a stale entry
+// exists, it is served instead of nothing.
+const { entryStatus, publicInfo } = require('./core/spellCache');
+const spellLookupPending = new Map(); // spellId -> Promise
+ipcMain.handle('spell:lookup', async (_e, spellId, buildVersion) => {
   if (!spellId || spellId === '0') return null;
   if (!settings.spellInfo || typeof settings.spellInfo !== 'object') settings.spellInfo = {};
-  if (settings.spellInfo[String(spellId)]) return settings.spellInfo[String(spellId)];
+  const key = String(spellId);
+  const status = entryStatus(settings.spellInfo[key], Date.now(), buildVersion || null);
+  if (status === 'fresh') return publicInfo(settings.spellInfo[key]);
+  if (status === 'failed-fresh') return null;
+  if (spellLookupPending.has(key)) return spellLookupPending.get(key);
   const https = require('https');
   const fetchJson = (url) => new Promise((resolve) => {
     const req = https.get(url, { headers: { Accept: 'application/json', 'User-Agent': 'TylersWoWTools/0.1.3' } }, (res) => {
@@ -209,13 +221,23 @@ ipcMain.handle('spell:lookup', async (_e, spellId) => {
     req.on('error', () => resolve(null));
     req.setTimeout(8000, () => { req.destroy(); resolve(null); });
   });
-  const data = await fetchJson(`https://nether.wowhead.com/tooltip/spell=${spellId}?dataEnv=1`);
-  if (!data || !data.name) return null;
-  const desc = String(data.tooltip || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 400);
-  const info = { name: data.name, icon: data.icon || null, desc: desc || null };
-  settings.spellInfo[String(spellId)] = info;
-  saveSettings();
-  return info;
+  const task = (async () => {
+    const data = await fetchJson(`https://nether.wowhead.com/tooltip/spell=${spellId}?dataEnv=1`);
+    if (!data || !data.name) {
+      const prev = settings.spellInfo[key];
+      if (prev && !prev.failed) return publicInfo(prev); // network hiccup: serve stale, keep its age
+      settings.spellInfo[key] = { failed: true, fetchedAt: Date.now() };
+      saveSettings();
+      return null;
+    }
+    const desc = String(data.tooltip || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 400);
+    const info = { name: data.name, icon: data.icon || null, desc: desc || null, fetchedAt: Date.now(), build: buildVersion || null };
+    settings.spellInfo[key] = info;
+    saveSettings();
+    return publicInfo(info);
+  })();
+  spellLookupPending.set(key, task);
+  try { return await task; } finally { spellLookupPending.delete(key); }
 });
 
 

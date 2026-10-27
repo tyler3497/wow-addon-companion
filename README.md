@@ -58,6 +58,12 @@ https://github.com/tyler3497/wow-gear-audit
   When a death opens, every spell in it is looked up up
   front so the icons show immediately, not just on hover.
   Clicking a spell opens its Wowhead page.
+- Spell-info caching (`src/core/spellCache.js`): a spell is
+  fetched at most once per 30 days, or once when the game
+  build changes (the dirty flag, since patches are when
+  spell info can change), and only when actually shown;
+  failed lookups are cached for 7 days, and concurrent
+  requests for the same spell share one fetch.
 - "Avoidable" is currently not shown at all: the combat log
   carries no avoidable flag, so it will come back only once
   a reliable source for it is settled on.
