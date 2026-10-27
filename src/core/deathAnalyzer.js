@@ -304,11 +304,11 @@ function createAnalyzer(opts) {
           spell: killing.spell, spellId: killing.spellId, source: killing.source,
           amount: killing.amount, overkill: killing.overkill,
           effectiveAmount: killing.overkill > 0 ? killing.amount - killing.overkill : killing.amount,
-          hpAfter: killing.hpAfter, avoidable: kbAvoidable,
+          hpAfter: killing.hpAfter, hpMax: killing.hpMax || null, avoidable: kbAvoidable,
         } : null,
         verdict: killing ? kbAvoidable : 'unknown',
-        damage: damage.map((e) => ({ tsIso: new Date(e.ms).toISOString(), msBeforeDeath: Math.round((ms - e.ms) / 100) / 10, source: e.source, spell: e.spell, spellId: e.spellId, amount: e.amount, overkill: e.overkill, hpAfter: e.hpAfter, avoidable: marks[e.spellId] || 'unknown' })),
-        healing: healing.map((e) => ({ tsIso: new Date(e.ms).toISOString(), msBeforeDeath: Math.round((ms - e.ms) / 100) / 10, source: e.source, spell: e.spell, spellId: e.spellId, amount: e.amount, overheal: e.overheal || 0, net: e.amount - (e.overheal || 0), hpAfter: e.hpAfter })),
+        damage: damage.map((e) => ({ tsIso: new Date(e.ms).toISOString(), msBeforeDeath: Math.round((ms - e.ms) / 100) / 10, source: e.source, spell: e.spell, spellId: e.spellId, amount: e.amount, overkill: e.overkill, hpAfter: e.hpAfter, hpMax: e.hpMax || null, avoidable: marks[e.spellId] || 'unknown' })),
+        healing: healing.map((e) => ({ tsIso: new Date(e.ms).toISOString(), msBeforeDeath: Math.round((ms - e.ms) / 100) / 10, source: e.source, spell: e.spell, spellId: e.spellId, amount: e.amount, overheal: e.overheal || 0, net: e.amount - (e.overheal || 0), hpAfter: e.hpAfter, hpMax: e.hpMax || null })),
         damageBySpell: [...bySpell.values()].sort((a, b) => b.total - a.total),
         healingBySource: [...byHealer.values()].sort((a, b) => b.total - a.total),
         totalDamage: damage.reduce((s, e) => s + e.amount, 0),
@@ -341,6 +341,7 @@ function createAnalyzer(opts) {
               spell: isSpell ? fl[10] : 'Melee', spellId: isSpell ? fl[9] : '0',
               amount, overkill: Number.isFinite(overkill) ? overkill : -1,
               hpAfter: (advanced && isSpell && Number.isFinite(Number(fl[14]))) ? Number(fl[14]) : null,
+              hpMax: (advanced && isSpell && Number.isFinite(Number(fl[15])) && Number(fl[15]) > 0) ? Number(fl[15]) : null,
             });
           }
         }
@@ -357,6 +358,7 @@ function createAnalyzer(opts) {
               ms, kind: 'heal', source: fl[2], spell: fl[10], spellId: fl[9],
               amount, overheal: Number.isFinite(overheal) ? overheal : 0,
               hpAfter: (advanced && Number.isFinite(Number(fl[14]))) ? Number(fl[14]) : null,
+              hpMax: (advanced && Number.isFinite(Number(fl[15])) && Number(fl[15]) > 0) ? Number(fl[15]) : null,
             });
           }
         }

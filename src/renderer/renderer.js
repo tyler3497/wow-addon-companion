@@ -304,6 +304,13 @@ function spellLinkHtml(spell, spellId, extraClass, desc) {
   return `<a href="#" class="spell-link ${extraClass || ''}" data-spell-id="${esc(spellId)}" data-spell-name="${esc(spell)}"${descAttr}>${spellIconHtml(spellId)}${esc(spell)}</a>`;
 }
 function deathKey(d) { return `${d.pullIndex}|${d.player}|${d.tsIso}`; }
+function hpBarHtml(hpAfter, hpMax) {
+  if (hpAfter == null) return '–';
+  if (hpMax == null || hpMax <= 0) return num(hpAfter);
+  const pct = Math.max(0, Math.min(100, Math.round((hpAfter / hpMax) * 100)));
+  const color = pct > 50 ? '#6fbf6f' : pct > 25 ? '#e0c060' : '#e07a7a';
+  return `<span class="hp-bar" title="${num(hpAfter)} / ${num(hpMax)}"><span class="hp-bar-fill" style="width:${pct}%;background:${color}"></span></span> ${pct}%`;
+}
 
 async function parseDeathLog() {
   if (!deathLogPath) return;
@@ -505,7 +512,7 @@ function deathDetailHtml(d) {
       <h3 style="color:${classColor(d.playerClass)}">${classIconHtml(d.playerClass, 24)}${esc(d.player)}${d.playerClass ? ` <span class="muted">(${esc(d.playerClass)}${d.playerSpec ? ` • ${esc(d.playerSpec)}` : ''})</span>` : ''}</h3>
       <p class="muted small">${esc(d.encounterName || 'Outside encounter')} · pull ${d.pullIndex || '–'} · ${d.timeInPullSec != null ? fmtTime(d.timeInPullSec) + ' into pull' : esc(d.timeLabel || '')} · ${esc(d.dateLabel || '')} ${esc(d.timeLabel || '')}</p>
       <h4>Killing blow</h4>
-      ${kb ? `<p>${spellLinkHtml(kb.spell, kb.spellId)} from ${esc(kb.source)} — <span class="amt-dmg">${num(kb.amount)} damage</span>${kb.overkill > 0 ? `, ${num(kb.overkill)} overkill (${num(kb.effectiveAmount)} effective)` : ''}${kb.hpAfter != null ? ` · HP after: ${num(kb.hpAfter)}` : ''}</p>`
+      ${kb ? `<p>${spellLinkHtml(kb.spell, kb.spellId)} from ${esc(kb.source)} — <span class="amt-dmg">${num(kb.amount)} damage</span>${kb.overkill > 0 ? `, ${num(kb.overkill)} overkill (${num(kb.effectiveAmount)} effective)` : ''}${kb.hpAfter != null ? ` · HP after: ${hpBarHtml(kb.hpAfter, kb.hpMax)}` : ''}</p>`
         : '<p class="muted">No damaging hit in the window — this death may be from a mechanic with no damage line (e.g. a fall, an instant kill, or a hit just outside the window).</p>'}
       <h4>Damage by spell — <span class="amt-dmg">${num(d.totalDamage)} total</span></h4>
       <table class="death-table">
@@ -523,7 +530,8 @@ function deathDetailHtml(d) {
           <td>${e.msBeforeDeath}s</td><td>${e.kind === 'heal' ? 'Heal' : 'Damage'}</td><td>${esc(e.source)}</td>
           <td>${spellLinkHtml(e.spell, e.spellId)}</td>
           <td class="${e.kind === 'heal' ? 'amt-heal' : 'amt-dmg'}">${e.kind === 'heal' ? `+${num(e.amount)}${e.overheal > 0 ? ` (${num(e.overheal)} overheal)` : ''}` : `${num(e.amount)}${e.overkill > 0 ? ` (${num(e.overkill)} overkill)` : ''}`}</td>
-          <td>${e.hpAfter != null ? num(e.hpAfter) : '–'}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">No events in the window.</td></tr>'}</tbody></table>
+          <td>${hpBarHtml(e.hpAfter, e.hpMax)}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">No events in the window.</td></tr>'}</tbody></table>
+      <p class="muted small">HP bars need advanced logging on. Melee (SWING) hits don't carry the victim's HP in the log, so those rows show no bar.</p>
       <h4>Defensives</h4>
       <p class="muted small">${d.defensives.classKnown ? `Spec from log: ${esc(d.defensives.playerClass)}${d.playerSpec ? ` • ${esc(d.playerSpec)}` : ''} — the available/on-cooldown lists are filtered to that spec where the database knows a restriction.` : 'Class not found in the log (no COMBATANT_INFO for this player), so only defensives they used or had up are shown.'} "Available" is an estimate: talents can change cooldowns, and a wipe may reset them. A defensive actually cast or active in the log is always shown, even if it falls outside the spec list.</p>
       <p><b>Active at death:</b></p>${defHtml}

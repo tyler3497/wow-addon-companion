@@ -59,6 +59,8 @@ assert.ok(death.activeAuras.some((a) => a.name === 'Shield Wall'), 'Shield Wall 
 assert.ok(death.defensives.active.some((d) => d.name === 'Shield Wall'), 'Shield Wall is an active defensive');
 assert.ok(death.damageBySpell.some((s) => s.spell === 'Living Venom' && s.avoidable === 'avoidable'));
 assert.strictEqual(death.timeInPullSec, 87, 'time into pull (22:15:22 -> 22:16:49)');
+assert.strictEqual(death.killingBlow.hpMax, 800000, 'max HP comes from the advanced params (field 15)');
+assert.strictEqual(death.killingBlow.hpAfter, 0, 'HP after the killing blow is 0');
 assert.deepStrictEqual(death.talents, [
   { nodeId: 82088, spellId: 103147, rank: 1 },
   { nodeId: 82091, spellId: 103150, rank: 2 },
