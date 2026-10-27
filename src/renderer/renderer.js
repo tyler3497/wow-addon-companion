@@ -102,16 +102,19 @@ function setAppStatus(text) { $('appUpdateStatus').textContent = text; }
 api.onAppUpdate((event) => {
   if (event.type === 'available') {
     $('appLatestVersion').textContent = event.version;
-    setAppStatus(`App update available: ${event.version}. Download it when you're ready — nothing installs yet.`);
-    $('btnAppDownload').disabled = false;
+    // Seamless: the download starts on its own now.
+    setAppStatus(`App update available: ${event.version}. Downloading it automatically…`);
+    $('btnAppDownload').disabled = true;
   } else if (event.type === 'none') {
     setAppStatus(`You're up to date (app ${event.version}).`);
   } else if (event.type === 'progress') {
     setAppStatus(`Downloading app update… ${event.percent}%`);
   } else if (event.type === 'downloaded') {
-    setAppStatus(`App update ${event.version} downloaded. Press Install & Restart when you're ready.`);
+    setAppStatus(`App update ${event.version} downloaded. Installing silently and restarting…`);
     $('btnAppDownload').disabled = true;
-    $('btnAppInstall').disabled = false;
+    $('btnAppInstall').disabled = true;
+  } else if (event.type === 'auto-installing') {
+    setAppStatus(`Installing app update ${event.version} and restarting…`);
   } else if (event.type === 'error') {
     // No-feed builds (packager folder builds) land here on launch;
     // keep it as a quiet status in this view, not a popup.
@@ -124,8 +127,15 @@ $('btnAppCheck').addEventListener('click', async () => {
     const res = await api.appCheck();
     if (res.available) {
       $('appLatestVersion').textContent = res.version;
-      setAppStatus(`App update available: ${res.version}.`);
-      $('btnAppDownload').disabled = false;
+      if (res.feedLag) {
+        // Release exists, feed hasn't caught up: Download will
+        // retry the check in this same session (no restart).
+        setAppStatus(res.message);
+        $('btnAppDownload').disabled = false;
+      } else {
+        setAppStatus(`App update available: ${res.version}. Downloading automatically…`);
+        $('btnAppDownload').disabled = true;
+      }
     } else if (res.reason === 'dev') {
       setAppStatus(res.message);
     } else if (res.reason === 'no-feed') {
@@ -138,7 +148,10 @@ $('btnAppCheck').addEventListener('click', async () => {
 $('btnAppDownload').addEventListener('click', async () => {
   setAppStatus('Downloading app update…');
   $('btnAppDownload').disabled = true;
-  try { await api.appDownload(); } catch (e) { setAppStatus(`Download failed: ${e.message}`); $('btnAppDownload').disabled = false; }
+  try {
+    const res = await api.appDownload();
+    if (res && !res.started) { setAppStatus(res.message || 'No update available.'); $('btnAppDownload').disabled = false; }
+  } catch (e) { setAppStatus(`Download failed: ${e.message}`); $('btnAppDownload').disabled = false; }
 });
 $('btnAppInstall').addEventListener('click', async () => {
   await api.appInstall();
@@ -152,7 +165,7 @@ $('btnAppInstall').addEventListener('click', async () => {
   const settings = await api.getSettings();
   $('addonsPath').value = settings.addOnsPath || '';
   await refreshInstalled();
-  log('Gear Audit companion ready.');
+  log("Tyler's WoW Tools ready.");
   log(`AddOns folder: ${settings.addOnsPath || '(none detected)'}`);
   await checkForUpdate();
 })();

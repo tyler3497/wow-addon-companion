@@ -1,4 +1,4 @@
-# WoW Addon Companion
+# Tyler's WoW Tools
 
 A standalone Electron app for retail World of Warcraft, kept in its
 own repo on purpose — separate from the addons themselves, so new
@@ -36,8 +36,15 @@ electron-updater + electron-builder**.
   quit — that's the hard part, already solved.
 - **In the app:** the App Updates view auto-checks on launch
   (silently — no popup if you're up to date). If an update is
-  found, Download runs in the background, then Install & Restart
-  appears. Nothing installs or restarts without you pressing it.
+  found, it downloads in the background, then installs silently
+  (NSIS `/S`, no installer wizard) and relaunches on the new
+  version — no clicks needed. The Download / Install & Restart
+  buttons remain as a manual fallback.
+- **Check freshness:** the check first asks api.github.com what
+  the latest release actually is, because electron-updater's
+  GitHub feed can lag a just-published release and falsely say
+  "up to date" until a restart. If the feed is lagging, the app
+  says so and retries in the same session instead of lying.
 - **To ship a new version:** bump `version` in `package.json`,
   `git tag vX.Y.Z`, push the tag. The GitHub Actions workflow
   in `.github/workflows/release.yml` builds the Windows NSIS
@@ -54,9 +61,9 @@ electron-updater + electron-builder**.
 ## Run it on Windows
 
 ### Easy way — prebuilt app
-Grab the latest `GearAudit-win32-x64` folder from a release (or
+Grab the latest `TylersWoWTools-win32-x64` folder from a release (or
 the zip attached to a build), unzip it anywhere, and double-click
-**GearAudit.exe**. No install, no Python, no admin rights needed.
+**TylersWoWTools.exe**. No install, no Python, no admin rights needed.
 
 ### From source
 ```sh
@@ -68,7 +75,7 @@ npm start
 ```sh
 npm install
 npm run pack:win
-# produces dist/GearAudit-win32-x64/GearAudit.exe
+# produces dist/TylersWoWTools-win32-x64/TylersWoWTools.exe
 ```
 Zip that folder to hand it to someone — the .exe plus its
 surrounding files are the whole app.

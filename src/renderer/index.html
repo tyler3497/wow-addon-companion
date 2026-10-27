@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Gear Audit</title>
+<title>Tyler's WoW Tools</title>
 <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
 <!-- Custom title bar: replaces the Windows title bar entirely.
      The whole bar (except the buttons) drags the window. -->
 <header id="titlebar">
-  <div id="titlebar-label"><span class="titlebar-icon">⚙</span> Gear Audit</div>
+  <div id="titlebar-label"><span class="titlebar-icon">⚙</span> Tyler's WoW Tools</div>
   <div id="titlebar-controls">
     <button id="btnWinMin" title="Minimize" aria-label="Minimize">—</button>
     <button id="btnWinMax" title="Maximize" aria-label="Maximize">▢</button>
@@ -19,7 +19,7 @@
 </header>
 <div id="app">
   <aside id="sidebar">
-    <h1>Gear Audit</h1>
+    <h1>Tyler's WoW Tools</h1>
     <p class="subtitle">WoW Addon Companion</p>
     <nav id="nav">
       <!-- Adding a feature: add a nav button here, a matching
@@ -62,7 +62,7 @@
 
     <section id="view-app-updates" class="view">
       <h2>App Updates</h2>
-      <p class="muted">This app checks for its own updates automatically when it launches. Updates come from GitHub Releases for this repo — never from the addon repo, and never silently installed.</p>
+      <p class="muted">This app checks for its own updates automatically when it launches. When one is found it downloads in the background, then installs silently and relaunches on the new version — no installer window, no clicks needed. The buttons below are just a manual fallback.</p>
       <div class="versions">
         <div><span class="label">This app:</span> <span id="appCurrentVersion">–</span></div>
         <div><span class="label">Latest release:</span> <span id="appLatestVersion">–</span></div>
@@ -73,13 +73,13 @@
         <button id="btnAppDownload" class="primary" disabled>Download Update</button>
         <button id="btnAppInstall" disabled>Install &amp; Restart</button>
       </div>
-      <p class="muted small">Download runs in the background. Install &amp; Restart only appears after a download finishes, and only restarts when you press it.</p>
+      <p class="muted small">Seamless by default: download, silent install, relaunch. An auto-install waits if a Gear Audit addon update is running, then restarts once that finishes.</p>
     </section>
 
     <section id="view-about" class="view">
       <h2>About</h2>
-      <p>Gear Audit companion app, version 0.1.1.</p>
-      <p class="muted">The addon itself lives in its own repo: <code>tyler3497/wow-gear-audit</code>. This companion app is separate on purpose, so new tools and features can be added here without touching the addon.</p>
+      <p>Tyler's WoW Tools, version 0.1.1.</p>
+      <p class="muted">The addon itself lives in its own repo: <code>tyler3497/wow-gear-audit</code>. This app is separate on purpose, so new tools and features can be added here without touching the addon.</p>
       <p class="muted">Updater source: <code>src/core/updater.js</code> — pure Node, tested with <code>npm run test:core</code>.</p>
     </section>
   </main>

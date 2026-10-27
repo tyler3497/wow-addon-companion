@@ -38,7 +38,7 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
     },
-    title: 'Gear Audit',
+    title: "Tyler's WoW Tools",
     backgroundColor: '#18181c',
   });
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
@@ -99,7 +99,15 @@ ipcMain.handle('updater:installed', () => updater.getInstalledVersion(settings.a
 ipcMain.handle('updater:latest', async () => updater.getLatestVersion());
 ipcMain.handle('updater:update', async (event) => {
   const log = (msg) => event.sender.send('updater:log', msg);
-  return updater.updateAddon(settings.addOnsPath, log);
+  // Tell the self-updater an addon update is running, so a
+  // seamless app auto-install waits for it instead of
+  // restarting the app mid-addon-update.
+  appUpdater.setAddonUpdateRunning(true);
+  try {
+    return await updater.updateAddon(settings.addOnsPath, log);
+  } finally {
+    appUpdater.setAddonUpdateRunning(false);
+  }
 });
 ipcMain.handle('updater:open-folder', () => {
   if (settings.addOnsPath && fs.existsSync(settings.addOnsPath)) shell.openPath(settings.addOnsPath);
