@@ -21,7 +21,7 @@
     "dist:win": "electron-builder --win nsis --publish never",
     "dist:linux": "electron-builder --linux AppImage --publish never"
   },
-  "version": "0.1.5",
+  "version": "0.1.6",
   "build": {
     "appId": "com.tyler.gearaudit",
     "productName": "Tylers WoW Tools",
