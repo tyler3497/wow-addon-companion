@@ -27,7 +27,7 @@ const log = [
   // COMBATANT_INFO: spec 71 (Arms Warrior) sits at field 25.
   (() => {
     const f = ['COMBATANT_INFO', PLAYER, 1, 2603, 429, 38689, 436, 0, 0, 0, 0, 1191, 1191, 1191, 0, 0, 676, 676, 676, 0, 589, 185, 185, 185, 2318, 71];
-    return `9/3/2026 22:15:22.380-4  ${csv(f)},[(1,2,1)]`;
+    return `9/3/2026 22:15:22.380-4  ${csv(f)},[(82088,103147,1),(82091,103150,2)],[(272149,295,(7967,0,0),(12834,6652),(240983,295))]`;
   })(),
   // Shield Wall cast, then a buff aura, then damage, then death.
   line('9/3/2026 22:15:30.000-4', ['SPELL_CAST_SUCCESS', PLAYER, 'Testy-Azgalor-US', '0x514', '0x80000000', PLAYER, 'Testy-Azgalor-US', '0x514', '0x80000000', 871, 'Shield Wall', '0x1', PLAYER, '0000000000000000', 800000, 800000, 1000, 2000, 1000, 0, 0, 100, 100, 0, 0, 0, 700.0, -350.0, 2608, 3.0, 310]),
@@ -59,6 +59,10 @@ assert.ok(death.activeAuras.some((a) => a.name === 'Shield Wall'), 'Shield Wall 
 assert.ok(death.defensives.active.some((d) => d.name === 'Shield Wall'), 'Shield Wall is an active defensive');
 assert.ok(death.damageBySpell.some((s) => s.spell === 'Living Venom' && s.avoidable === 'avoidable'));
 assert.strictEqual(death.timeInPullSec, 87, 'time into pull (22:15:22 -> 22:16:49)');
+assert.deepStrictEqual(death.talents, [
+  { nodeId: 82088, spellId: 103147, rank: 1 },
+  { nodeId: 82091, spellId: 103150, rank: 2 },
+], 'talent triples parse from COMBATANT_INFO; the gear entry does not');
 
 // A second, unmarked log must not guess: verdict stays unknown.
 const unmarked = parseCombatLogText(log, { windowSec: 10 });
@@ -79,7 +83,7 @@ function specLog(specId, auraId, auraName) {
   return [
     line('9/3/2026 22:15:22.380-4', ['COMBAT_LOG_VERSION', 22, 'ADVANCED_LOG_ENABLED', 1, 'BUILD_VERSION', '12.1.0', 'PROJECT_ID', 1]),
     line('9/3/2026 22:15:22.380-4', ['ENCOUNTER_START', 3445, 'Entombed Sentinels', 15, 15, 3004]),
-    `9/3/2026 22:15:22.380-4  ${csv(f)},[(1,2,1)]`,
+    `9/3/2026 22:15:22.380-4  ${csv(f)},[(82088,103147,1),(82091,103150,2)],[(272149,295,(7967,0,0),(12834,6652),(240983,295))]`,
     auraLine('9/3/2026 22:16:40.000-4', 'SPELL_AURA_APPLIED', PLAYER, 'Testy-Azgalor-US', PLAYER, 'Testy-Azgalor-US', auraId, auraName, 'BUFF'),
     spellLine('9/3/2026 22:16:49.024-4', 'SPELL_DAMAGE', BOSS, "Breath of Ula'tek", PLAYER, 'Testy-Azgalor-US', 1284209, 'Living Venom', 0, 226661, 40013),
     line('9/3/2026 22:16:49.025-4', ['UNIT_DIED', '0000000000000000', 'nil', '0x80000000', '0x80000000', PLAYER, 'Testy-Azgalor-US', '0x514', '0x80000000', 0]),
@@ -88,6 +92,7 @@ function specLog(specId, auraId, auraName) {
 function defNames(d) { return [...d.defensives.active, ...d.defensives.available, ...d.defensives.onCooldown].map((x) => x.name); }
 const prot = parseCombatLogText(specLog(73, 871, 'Shield Wall'), { windowSec: 10 }).deaths[0];
 assert.strictEqual(prot.playerSpec, 'Protection', 'spec 73 maps to Protection');
+assert.strictEqual(prot.talents.length, 2, 'spec log talents parse (gear skipped)');
 assert.ok(defNames(prot).includes('Last Stand'), 'Protection sees Last Stand');
 assert.ok(!defNames(prot).includes('Die by the Sword'), 'Protection does NOT see Die by the Sword');
 const shadow = parseCombatLogText(specLog(258, 47585, 'Dispersion'), { windowSec: 10 }).deaths[0];

@@ -95,3 +95,9 @@ code { background: #2a2a30; padding: 2px 5px; border-radius: 4px; }
 .def-list { margin: 4px 0 12px; padding-left: 20px; font-size: 14px; }
 .death-detail details { margin-top: 12px; }
 .death-detail summary { cursor: pointer; color: #bbb; }
+.talent-tree-details { margin: 12px 0; }
+.talent-tree-details summary { cursor: pointer; color: #bbb; font-weight: bold; }
+.talent-tree-grid { display: grid; grid-template-columns: repeat(6, 44px); gap: 6px; margin-top: 10px; }
+.talent-tile { position: relative; display: block; width: 44px; height: 44px; border: 1px solid #444; border-radius: 6px; background: #1a1a20; }
+.talent-tile img { margin: 3px; border-radius: 4px; }
+.talent-rank { position: absolute; right: 2px; bottom: 2px; background: #000; color: #ffd76a; font-size: 11px; font-weight: bold; padding: 0 3px; border-radius: 3px; }

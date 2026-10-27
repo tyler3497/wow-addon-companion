@@ -41,6 +41,13 @@
 //     millisecond as UNIT_DIED. "Active at death" is therefore
 //     reconstructed from aura events up to 50ms before death,
 //     not from the aura state at the death line itself.
+//   - COMBATANT_INFO (one per player at each encounter start)
+//     carries the player's talent build as (nodeId, spellId,
+//     rank) triples at the start of its first bracketed list,
+//     followed by gear entries (which have nested tuples and
+//     are skipped). The log gives IDs and ranks, not names;
+//     names and icons come from the same Wowhead lookup the
+//     renderer already uses for spells.
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -69,6 +76,32 @@ function splitCsv(text) {
   }
   out.push(cur);
   return out;
+}
+
+// Parse the talent triples out of a COMBATANT_INFO line.
+// Gear entries in the same list have nested tuples and more
+// fields, so only plain 3-number triples match.
+function parseCombatantTalents(rest) {
+  const start = rest.indexOf('[');
+  if (start < 0) return [];
+  const sep = rest.indexOf('],[', start);
+  const seg = sep >= 0 ? rest.slice(start + 1, sep) : rest.slice(start + 1, rest.lastIndexOf(']'));
+  const entries = [];
+  let depth = 0;
+  let cur = '';
+  for (const ch of seg) {
+    if (ch === '(') depth++;
+    if (ch === ')') depth--;
+    if (ch === ',' && depth === 0) { entries.push(cur); cur = ''; }
+    else cur += ch;
+  }
+  if (cur) entries.push(cur);
+  const talents = [];
+  for (const e of entries) {
+    const m = /^\((\d+),(\d+),(\d+)\)$/.exec(e.trim());
+    if (m) talents.push({ nodeId: Number(m[1]), spellId: Number(m[2]), rank: Number(m[3]) });
+  }
+  return talents;
 }
 
 function parseTimestampMs(line) {
@@ -109,6 +142,7 @@ function createAnalyzer(opts) {
   let currentPull = null;
   const playerNames = new Map(); // guid -> name
   const playerSpec = new Map(); // guid -> specId
+  const playerTalents = new Map(); // guid -> latest [{nodeId, spellId, rank}]
   const recent = new Map(); // guid -> deque [{...}]
   const auraEvents = new Map(); // guid -> [{ms, action, spellId, name, type, source}]
   const lastDefensiveCast = new Map(); // guid -> Map(spellId -> ms)
@@ -192,6 +226,11 @@ function createAnalyzer(opts) {
       if (fl.length > 25 && isPlayerGuid(fl[1])) {
         const spec = Number(fl[25]);
         if (Number.isFinite(spec)) playerSpec.set(fl[1], spec);
+        const talents = parseCombatantTalents(rest);
+        if (talents.length) {
+          playerTalents.set(fl[1], talents);
+          if (currentPull) currentPull.talents.set(fl[1], talents);
+        }
       }
       return;
     }
@@ -211,6 +250,7 @@ function createAnalyzer(opts) {
         index: pulls.length + 1, encounterId: fl[1], name: fl[2], difficulty: fl[3],
         groupSize: fl[4], startMs: ms, startIso: new Date(ms).toISOString(),
         success: null, fightMs: null, endIso: null, deaths: [],
+        talents: new Map(), // guid -> talents at this pull's start
       };
       pulls.push(currentPull);
       return;
@@ -276,6 +316,7 @@ function createAnalyzer(opts) {
         totalHealingNet: healing.reduce((s, e) => s + (e.amount - (e.overheal || 0)), 0),
         activeAuras,
         defensives,
+        talents: (currentPull && currentPull.talents.get(guid)) || playerTalents.get(guid) || [],
       };
       if (currentPull) currentPull.deaths.push(death);
       else outsideDeaths.push(death);

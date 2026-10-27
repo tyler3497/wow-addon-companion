@@ -44,6 +44,13 @@ https://github.com/tyler3497/wow-gear-audit
   Die by the Sword, an Arms Warrior does not see Last Stand),
   while a defensive actually cast or active in the log is
   always shown even if it falls outside the spec list.
+- Talents at pull start: each death shows the dead player's
+  talent build from COMBATANT_INFO (spell IDs + ranks, with
+  names and icons from Wowhead lookups), plus a collapsible
+  talent-tree view (hidden by default) that shows the build
+  as a grid of talent icons. The grid is in log order, not
+  the in-game tree geometry — the log records which talents
+  were picked, not where each node sits in the tree.
 - Hover any spell name for what it does: defensives use the
   app's own database, other spells are looked up from
   Wowhead's public tooltip endpoint and cached (a failed

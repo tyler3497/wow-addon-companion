@@ -385,6 +385,7 @@ async function prefetchDeathSpells(death, key) {
   (death.damageBySpell || []).forEach((x) => add(x.spellId));
   (death.healing || []).forEach((x) => add(x.spellId));
   (death.activeAuras || []).forEach((x) => add(x.spellId));
+  (death.talents || []).forEach((x) => add(x.spellId));
   ['active', 'available', 'onCooldown'].forEach((list) => (death.defensives[list] || []).forEach((x) => add(x.id)));
   const todo = [...ids].filter((id) => !spellInfoCache.has(id) && !failedSpellIds.has(id));
   for (let i = 0; i < todo.length; i += 8) {
@@ -525,6 +526,23 @@ function deathDetailHtml(d) {
       <h4>Defensives</h4>
       <p class="muted small">${d.defensives.classKnown ? `Spec from log: ${esc(d.defensives.playerClass)}${d.playerSpec ? ` • ${esc(d.playerSpec)}` : ''} — the available/on-cooldown lists are filtered to that spec where the database knows a restriction.` : 'Class not found in the log (no COMBATANT_INFO for this player), so only defensives they used or had up are shown.'} "Available" is an estimate: talents can change cooldowns, and a wipe may reset them. A defensive actually cast or active in the log is always shown, even if it falls outside the spec list.</p>
       <p><b>Active at death:</b></p>${defHtml}
+      <h4>Talents at pull start (${(d.talents || []).length})</h4>
+      ${(d.talents || []).length ? `<p class="muted small">Build from COMBATANT_INFO at the start of this pull. Names and icons come from Wowhead lookups; a talent not yet looked up shows its spell ID until the prefetch finishes.</p>
+      <ul class="aura-list">${d.talents.map((t) => {
+        const info = spellInfoCache.get(String(t.spellId));
+        const label = info && info.name ? info.name : `Talent ${t.spellId}`;
+        return `<li>${spellLinkHtml(label, t.spellId)} <span class="muted small">rank ${t.rank} · spell ${esc(t.spellId)}</span></li>`;
+      }).join('')}</ul>
+      <details class="talent-tree-details">
+        <summary>Talent tree — visual build (click to show)</summary>
+        <p class="muted small">Each tile is a selected talent from this build, with its rank. This is the build laid out in log order, not the in-game tree geometry — the combat log records which talents were picked, not where each node sits in the tree. For the true in-game layout, the app would need Blizzard's talent-tree data (node row/column), which the log does not carry.</p>
+        <div class="talent-tree-grid">${d.talents.map((t) => {
+          const info = spellInfoCache.get(String(t.spellId));
+          const label = info && info.name ? info.name : `Talent ${t.spellId}`;
+          return `<a href="#" class="spell-link talent-tile" data-spell-id="${esc(t.spellId)}" data-spell-name="${esc(label)}" title="${esc(label)}">${spellIconHtml(t.spellId, 36)}${t.rank > 1 ? `<span class="talent-rank">${t.rank}</span>` : ''}</a>`;
+        }).join('')}</div>
+      </details>`
+        : '<p class="muted small">No talent data in this log for this player (no COMBATANT_INFO line for them).</p>'}
       <h4>All auras active at death (${d.activeAuras.length})</h4>
       ${d.activeAuras.length ? `<ul class="aura-list">${d.activeAuras.map((a) => `<li><span class="badge ${a.type === 'DEBUFF' ? 'bad' : 'good'}">${a.type === 'DEBUFF' ? 'Debuff' : 'Buff'}</span> ${spellLinkHtml(a.name, a.spellId)} <span class="muted small">from ${esc(a.source || 'unknown')} · spell ${esc(a.spellId)}</span></li>`).join('')}</ul>` : '<p class="muted small">None.</p>'}
       <div class="row" style="margin-top:16px"><button id="btnCopyDeath">Copy death summary</button></div>`;
