@@ -11,8 +11,17 @@
 #      reads to discover the new version.
 #   4. The Linux job then builds the identical app as an AppImage
 #      on Ubuntu and attaches it (plus latest-linux.yml) to the
-#      same release. It runs after the Windows job so it attaches
-#      to the release the Windows job created, instead of racing it.
+#      same release with `gh release upload`. It must NOT use
+#      electron-builder --publish always: that creates a SECOND
+#      release for the same tag instead of attaching to the
+#      Windows job's release (this split v0.1.4 across two
+#      releases, one with latest.yml and one without, and the
+#      updater 404'd on latest.yml). Uploading via gh targets
+#      the single release for the tag, so the split cannot recur.
+#   5. A verify job then checks there is exactly one release
+#      for the tag and that it holds all expected assets, so a
+#      future split fails the workflow loudly instead of
+#      reaching users as a broken update.
 #
 # Users on an installer build then see the update in the app's
 # App Updates view (auto-checked on launch) and can Download,
@@ -54,6 +63,41 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npx electron-builder --linux AppImage --publish always
+      # Build only — do NOT publish via electron-builder (see
+      # header: it creates a second release for the same tag).
+      # Attach to the Windows job's release with gh instead.
+      - run: npx electron-builder --linux AppImage --publish never
+      - run: gh release upload "${{ github.ref_name }}" dist/*.AppImage dist/latest-linux.yml --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  verify-release:
+    needs: [release, release-linux]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Exactly one complete release for this tag
+        run: |
+          python3 - << 'PY'
+          import json, subprocess, sys
+          tag = "${{ github.ref_name }}"
+          out = subprocess.check_output(
+              ["gh", "api", "repos/tyler3497/wow-addon-companion/releases"],
+              text=True)
+          matches = [r for r in json.loads(out) if r["tag_name"] == tag]
+          if len(matches) != 1:
+              sys.exit(f"expected exactly 1 release for {tag}, found {len(matches)}")
+          names = {a["name"] for a in matches[0]["assets"]}
+          required = {"latest.yml", "latest-linux.yml"}
+          missing = required - names
+          if missing:
+              sys.exit(f"release for {tag} is missing: {sorted(missing)} (have {sorted(names)})")
+          if not any(n.endswith(".exe") for n in names):
+              sys.exit(f"release for {tag} has no Windows installer (have {sorted(names)})")
+          if not any(n.endswith(".AppImage") for n in names):
+              sys.exit(f"release for {tag} has no AppImage (have {sorted(names)})")
+          print(f"release {matches[0]['id']} for {tag} OK: {sorted(names)}")
+          PY
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
