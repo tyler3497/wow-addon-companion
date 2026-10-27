@@ -3,6 +3,7 @@ const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const updater = require('./core/updater');
+const appUpdater = require('./core/appUpdater');
 
 let mainWindow = null;
 let settingsPath = null;
@@ -35,6 +36,18 @@ function createWindow() {
   });
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   mainWindow.on('closed', () => { mainWindow = null; });
+  // Self-update: auto-check on launch, once the window is ready to
+  // receive events. Silent when up to date or when this build has
+  // no update feed — the result just lands in the App Updates view,
+  // never as a popup. A found update only enables Download there.
+  mainWindow.webContents.on('did-finish-load', () => {
+    appUpdater.init((event) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('app-update:event', event);
+      }
+    });
+    appUpdater.check().catch(() => {});
+  });
 }
 
 app.whenReady().then(() => {
@@ -75,3 +88,9 @@ ipcMain.handle('updater:update', async (event) => {
 ipcMain.handle('updater:open-folder', () => {
   if (settings.addOnsPath && fs.existsSync(settings.addOnsPath)) shell.openPath(settings.addOnsPath);
 });
+
+// ---- Self-update (the app itself, not the addon) ----
+ipcMain.handle('app-update:current', () => appUpdater.currentVersion());
+ipcMain.handle('app-update:check', () => appUpdater.check());
+ipcMain.handle('app-update:download', () => appUpdater.download());
+ipcMain.handle('app-update:install', () => appUpdater.install());

@@ -12,4 +12,10 @@ contextBridge.exposeInMainWorld('gearAudit', {
   update: () => ipcRenderer.invoke('updater:update'),
   openFolder: () => ipcRenderer.invoke('updater:open-folder'),
   onLog: (cb) => ipcRenderer.on('updater:log', (_e, msg) => cb(msg)),
+  // Self-update
+  appCurrentVersion: () => ipcRenderer.invoke('app-update:current'),
+  appCheck: () => ipcRenderer.invoke('app-update:check'),
+  appDownload: () => ipcRenderer.invoke('app-update:download'),
+  appInstall: () => ipcRenderer.invoke('app-update:install'),
+  onAppUpdate: (cb) => ipcRenderer.on('app-update:event', (_e, event) => cb(event)),
 });

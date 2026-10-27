@@ -20,6 +20,37 @@ https://github.com/tyler3497/wow-gear-audit
 - If WoW was already running, type `/reload` in game (or restart
   WoW) to load the new version.
 
+## Self-updates (the app updating itself)
+
+Best way, and the one this app uses: **GitHub Releases +
+electron-updater + electron-builder**.
+
+- **Why Releases, not the `main` branch:** a release is versioned
+  and immutable (tag `v1.2.0` + installer + `latest.yml`). The
+  app can compare its own version against `latest.yml` and know
+  for sure a newer build exists. `main` has no version and moves
+  constantly, so it can't do that reliably.
+- **Why electron-updater, not a hand-rolled zip swap:** on
+  Windows a running .exe can't overwrite itself. electron-updater
+  downloads the new installer, verifies it, and installs it on
+  quit — that's the hard part, already solved.
+- **In the app:** the App Updates view auto-checks on launch
+  (silently — no popup if you're up to date). If an update is
+  found, Download runs in the background, then Install & Restart
+  appears. Nothing installs or restarts without you pressing it.
+- **To ship a new version:** bump `version` in `package.json`,
+  `git tag vX.Y.Z`, push the tag. The GitHub Actions workflow
+  in `.github/workflows/release.yml` builds the Windows NSIS
+  installer on a Windows runner and publishes the Release with
+  `latest.yml`. (Building NSIS on Linux needs Wine, so CI is
+  the reliable route.)
+- **Limitation to know:** a folder build made with
+  `npm run pack:win` (electron-packager) has no update feed, so
+  it cannot self-update — its App Updates view will say so
+  plainly. Only installer builds from a Release self-update.
+  The first installer release is therefore the one that turns
+  self-updates on for everyone after it.
+
 ## Run it on Windows
 
 ### Easy way — prebuilt app

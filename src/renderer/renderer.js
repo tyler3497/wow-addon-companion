@@ -81,6 +81,58 @@ $('btnUpdate').addEventListener('click', async () => {
   }
 });
 
+// ---- App Updates (the app itself) ----
+// The main process already auto-checks on launch and forwards
+// events here. Manual Check just re-runs that same check.
+function setAppStatus(text) { $('appUpdateStatus').textContent = text; }
+api.onAppUpdate((event) => {
+  if (event.type === 'available') {
+    $('appLatestVersion').textContent = event.version;
+    setAppStatus(`App update available: ${event.version}. Download it when you're ready — nothing installs yet.`);
+    $('btnAppDownload').disabled = false;
+  } else if (event.type === 'none') {
+    setAppStatus(`You're up to date (app ${event.version}).`);
+  } else if (event.type === 'progress') {
+    setAppStatus(`Downloading app update… ${event.percent}%`);
+  } else if (event.type === 'downloaded') {
+    setAppStatus(`App update ${event.version} downloaded. Press Install & Restart when you're ready.`);
+    $('btnAppDownload').disabled = true;
+    $('btnAppInstall').disabled = false;
+  } else if (event.type === 'error') {
+    // No-feed builds (packager folder builds) land here on launch;
+    // keep it as a quiet status in this view, not a popup.
+    setAppStatus(`App update check unavailable: ${event.message}`);
+  }
+});
+$('btnAppCheck').addEventListener('click', async () => {
+  setAppStatus('Checking for app updates…');
+  try {
+    const res = await api.appCheck();
+    if (res.available) {
+      $('appLatestVersion').textContent = res.version;
+      setAppStatus(`App update available: ${res.version}.`);
+      $('btnAppDownload').disabled = false;
+    } else if (res.reason === 'dev') {
+      setAppStatus(res.message);
+    } else if (res.reason === 'no-feed') {
+      setAppStatus(res.message);
+    } else {
+      setAppStatus(`You're up to date (app ${res.version}).`);
+    }
+  } catch (e) { setAppStatus(`App update check failed: ${e.message}`); }
+});
+$('btnAppDownload').addEventListener('click', async () => {
+  setAppStatus('Downloading app update…');
+  $('btnAppDownload').disabled = true;
+  try { await api.appDownload(); } catch (e) { setAppStatus(`Download failed: ${e.message}`); $('btnAppDownload').disabled = false; }
+});
+$('btnAppInstall').addEventListener('click', async () => {
+  await api.appInstall();
+});
+(async () => {
+  try { $('appCurrentVersion').textContent = await api.appCurrentVersion(); } catch (_) {}
+})();
+
 // Startup: fill in the saved/detected path, then check GitHub.
 (async () => {
   const settings = await api.getSettings();

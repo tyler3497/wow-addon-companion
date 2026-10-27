@@ -16,6 +16,7 @@
            <section> below, and a handler in renderer.js. Each
            feature's real work lives in src/core/<feature>.js. -->
       <button class="nav-btn active" data-view="updater">Updater</button>
+      <button class="nav-btn" data-view="app-updates">App Updates</button>
       <button class="nav-btn" data-view="about">About</button>
     </nav>
     <p class="sidebar-note">More features can plug in here later — the updater is just the first one.</p>
@@ -49,9 +50,25 @@
       <p class="muted small">If WoW was already running, type <code>/reload</code> in game (or restart WoW) to load the new version.</p>
     </section>
 
+    <section id="view-app-updates" class="view">
+      <h2>App Updates</h2>
+      <p class="muted">This app checks for its own updates automatically when it launches. Updates come from GitHub Releases for this repo — never from the addon repo, and never silently installed.</p>
+      <div class="versions">
+        <div><span class="label">This app:</span> <span id="appCurrentVersion">–</span></div>
+        <div><span class="label">Latest release:</span> <span id="appLatestVersion">–</span></div>
+      </div>
+      <p id="appUpdateStatus" class="status">Checking on launch…</p>
+      <div class="row">
+        <button id="btnAppCheck">Check for App Update</button>
+        <button id="btnAppDownload" class="primary" disabled>Download Update</button>
+        <button id="btnAppInstall" disabled>Install &amp; Restart</button>
+      </div>
+      <p class="muted small">Download runs in the background. Install &amp; Restart only appears after a download finishes, and only restarts when you press it.</p>
+    </section>
+
     <section id="view-about" class="view">
       <h2>About</h2>
-      <p>Gear Audit companion app, version 1.0.0.</p>
+      <p>Gear Audit companion app, version 1.1.0.</p>
       <p class="muted">The addon itself lives in its own repo: <code>tyler3497/wow-gear-audit</code>. This companion app is separate on purpose, so new tools and features can be added here without touching the addon.</p>
       <p class="muted">Updater source: <code>src/core/updater.js</code> — pure Node, tested with <code>npm run test:core</code>.</p>
     </section>
