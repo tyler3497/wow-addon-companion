@@ -150,16 +150,16 @@ function createAnalyzer(opts) {
     const onCooldown = [];
     for (const d of candidates) {
       if (activeAuras.has(String(d.id))) {
-        active.push({ id: d.id, name: d.name, cls: d.cls, cooldownSec: d.cooldownSec, state: 'active' });
+        active.push({ id: d.id, name: d.name, cls: d.cls, cooldownSec: d.cooldownSec, desc: d.desc || null, state: 'active' });
         continue;
       }
       const last = castMap.get(String(d.id));
       if (last === undefined) {
-        available.push({ id: d.id, name: d.name, cls: d.cls, cooldownSec: d.cooldownSec, state: 'available', note: 'not used in this log' });
+        available.push({ id: d.id, name: d.name, cls: d.cls, cooldownSec: d.cooldownSec, desc: d.desc || null, state: 'available', note: 'not used in this log' });
       } else if (deathMs - last >= d.cooldownSec * 1000) {
-        available.push({ id: d.id, name: d.name, cls: d.cls, cooldownSec: d.cooldownSec, state: 'available', secondsSinceCast: Math.round((deathMs - last) / 1000) });
+        available.push({ id: d.id, name: d.name, cls: d.cls, cooldownSec: d.cooldownSec, desc: d.desc || null, state: 'available', secondsSinceCast: Math.round((deathMs - last) / 1000) });
       } else {
-        onCooldown.push({ id: d.id, name: d.name, cls: d.cls, cooldownSec: d.cooldownSec, state: 'cooldown', secondsLeft: Math.ceil((last + d.cooldownSec * 1000 - deathMs) / 1000), secondsSinceCast: Math.round((deathMs - last) / 1000) });
+        onCooldown.push({ id: d.id, name: d.name, cls: d.cls, cooldownSec: d.cooldownSec, desc: d.desc || null, state: 'cooldown', secondsLeft: Math.ceil((last + d.cooldownSec * 1000 - deathMs) / 1000), secondsSinceCast: Math.round((deathMs - last) / 1000) });
       }
     }
     return { active, available, onCooldown, playerClass: cls, classKnown: !!cls };

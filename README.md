@@ -27,17 +27,24 @@ https://github.com/tyler3497/wow-gear-audit
   HP-after-hit on every line.
 - Lists every pull (encounter, wipe/kill, duration) and every
   player death in it, including deaths outside encounters.
-- Click a death for: the killing blow (amount, overkill,
-  effective damage), the damage timeline and damage grouped by
-  spell in the window before death (default 10s, 5/10/15s
-  selectable), healing gross vs net by source, auras active at
-  death, and defensives split into active / available
-  (estimated from last cast + cooldown) / on cooldown.
-- "Avoidable" is never guessed. Every spell starts unknown;
-  mark spells Avoidable/Unavoidable from Blizzard's own damage
-  meter and the marks are saved and applied to future logs —
-  a death is only called avoidable when its killing blow is
-  marked so.
+- Click a death and it expands in place under its row with:
+  the killing blow (amount, overkill, effective damage),
+  damage grouped by spell, healing gross vs net by source, a
+  single timeline of every damage and healing event in the
+  window before death (default 10s, 5/10/15s selectable),
+  auras active at death as a real list, and defensives split
+  into active / available (estimated from last cast +
+  cooldown) / on cooldown.
+- Player names are colored by class (with a class icon) and
+  the timeline color-codes damage red and healing green.
+- Hover any spell name for what it does: defensives use the
+  app's own database, other spells are looked up from
+  Wowhead's public tooltip endpoint and cached (a failed
+  lookup shows no description rather than a guessed one).
+  Clicking a spell opens its Wowhead page.
+- "Avoidable" is currently not shown at all: the combat log
+  carries no avoidable flag, so it will come back only once
+  a reliable source for it is settled on.
 - Core parser: `src/core/deathAnalyzer.js` (pure Node, streams
   the file — a 187 MB / 648k-line raid log parses in ~6s),
   defensive database: `src/core/defensives.js`,

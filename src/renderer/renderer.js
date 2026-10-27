@@ -254,12 +254,16 @@ $('btnAppInstall').addEventListener('click', async () => {
 
 // ---- Death Analyzer ----
 // Parses a WoWCombatLog.txt (or zip) in the main process and
-// renders pulls -> deaths -> one death's full timeline. The
-// parser never guesses avoidable: marks come from the user,
-// saved in settings, and are applied on every re-parse.
+// renders pulls -> deaths, with each death expanding in place
+// under its row. Avoidable is NOT shown here: there is no
+// reliable source for it in the log yet, so nothing is guessed.
+// Spell descriptions/icons come from Wowhead's public tooltip
+// endpoint on hover (cached in settings); when that lookup
+// fails, the name still links to the spell's Wowhead page.
 let deathResult = null;
 let deathLogPath = null;
-let currentDeath = null;
+let expandedDeathKey = null;
+const spellInfoCache = new Map();
 
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const num = (n) => Number(n || 0).toLocaleString('en-US');
@@ -268,14 +272,38 @@ const fmtTime = (sec) => {
   const m = Math.floor(sec / 60), s = sec % 60;
   return m > 0 ? `${m}:${String(s).padStart(2, '0')}` : `${s}s`;
 };
-function verdictBadge(v) {
-  if (v === 'avoidable') return '<span class="badge bad">Avoidable death</span>';
-  if (v === 'unavoidable') return '<span class="badge good">Unavoidable</span>';
-  return '<span class="badge unknown">Avoidable: unknown</span>';
+const CLASS_COLORS = {
+  'Warrior': '#c79c6e', 'Paladin': '#f58cba', 'Hunter': '#abd473', 'Rogue': '#fff569',
+  'Priest': '#ffffff', 'Death Knight': '#c41f3b', 'Shaman': '#0070de', 'Mage': '#69ccf0',
+  'Warlock': '#9482c9', 'Druid': '#ff7d0a', 'Monk': '#00ff96', 'Demon Hunter': '#a330c9',
+  'Evoker': '#33937f',
+};
+const classColor = (cls) => CLASS_COLORS[cls] || '#e6e6e6';
+function classIconHtml(cls, size) {
+  if (!cls) return '';
+  const key = cls.toLowerCase().replace(/[^a-z]/g, '');
+  const px = size || 20;
+  // Blizzard render CDN class icons; onerror hides the img so
+  // a failed load degrades to just the colored class name.
+  return `<img class="class-icon" width="${px}" height="${px}" src="https://render.worldofwarcraft.com/us/icons/56/classicon_${key}.jpg" onerror="this.style.display='none'" alt="${esc(cls)}">`;
 }
-function avoidableLabel(v) {
-  return v === 'avoidable' ? 'Avoidable' : v === 'unavoidable' ? 'Unavoidable' : 'Unknown';
+function spellIconHtml(spellId, size) {
+  const info = spellInfoCache.get(String(spellId));
+  if (!info || !info.icon) return '';
+  const px = size || 18;
+  return `<img class="spell-icon" width="${px}" height="${px}" src="https://wow.zamimg.com/images/wow/icons/medium/${esc(info.icon)}.jpg" onerror="this.style.display='none'" alt="">`;
 }
+// A spell name is a Wowhead link with a hover tooltip. The
+// tooltip shows a real description when one is known (a
+// defensive in the app's database, or a fetched Wowhead
+// tooltip); otherwise it says plainly that the log has no
+// description, and the click opens the Wowhead page.
+function spellLinkHtml(spell, spellId, extraClass, desc) {
+  if (!spellId || spellId === '0' || spellId === 0) return `<span class="${extraClass || ''}">${esc(spell)}</span>`;
+  const descAttr = desc ? ` data-desc="${esc(desc)}"` : '';
+  return `<a href="#" class="spell-link ${extraClass || ''}" data-spell-id="${esc(spellId)}" data-spell-name="${esc(spell)}"${descAttr}>${spellIconHtml(spellId)}${esc(spell)}</a>`;
+}
+function deathKey(d) { return `${d.pullIndex}|${d.player}|${d.tsIso}`; }
 
 async function parseDeathLog() {
   if (!deathLogPath) return;
@@ -286,11 +314,10 @@ async function parseDeathLog() {
   try {
     deathResult = await api.parseDeathLog(deathLogPath, windowSec);
     const pulls = deathResult.pulls || [];
-    $('deathStatus').textContent = `${deathResult.totalPlayerDeaths} player deaths in ${pulls.length} pull${pulls.length === 1 ? '' : 's'}${deathResult.advanced ? '' : ' — advanced logging was off, so HP-after-hit is missing.'} Click a death for its timeline.`;
+    $('deathStatus').textContent = `${deathResult.totalPlayerDeaths} player deaths in ${pulls.length} pull${pulls.length === 1 ? '' : 's'}${deathResult.advanced ? '' : ' — advanced logging was off, so HP-after-hit is missing.'} Click a death to expand it in place.`;
     $('deathPath').textContent = deathLogPath;
-    currentDeath = null;
+    expandedDeathKey = null;
     renderDeathPulls();
-    $('deathDetail').innerHTML = '';
   } catch (e) {
     $('deathStatus').textContent = `Parse failed: ${e.message}`;
   } finally {
@@ -306,12 +333,16 @@ api.onDeathProgress((p) => {
 function deathRowHtml(death) {
   const kb = death.killingBlow;
   const kbTxt = kb ? `${esc(kb.spell)} — ${num(kb.amount)}${kb.overkill > 0 ? ` (${num(kb.overkill)} overkill)` : ''} from ${esc(kb.source)}` : 'No damaging hit in the window';
-  return `<button class="death-row" data-death-key="${esc(death.pullIndex)}|${esc(death.player)}|${esc(death.tsIso)}">
-    <span class="death-player">${esc(death.player)}${death.playerClass ? ` <span class="muted small">(${esc(death.playerClass)})</span>` : ''}</span>
-    <span class="death-time">${death.timeInPullSec != null ? `${fmtTime(death.timeInPullSec)} into pull` : esc(death.timeLabel || '')}</span>
-    <span class="death-kb">${kbTxt}</span>
-    ${verdictBadge(death.verdict)}
-  </button>`;
+  const open = expandedDeathKey === deathKey(death);
+  return `<div class="death-row-wrap ${open ? 'open' : ''}">
+    <button class="death-row" data-death-key="${esc(deathKey(death))}">
+      <span class="death-player" style="color:${classColor(death.playerClass)}">${classIconHtml(death.playerClass)}${esc(death.player)}${death.playerClass ? ` <span class="muted small">(${esc(death.playerClass)})</span>` : ''}</span>
+      <span class="death-time">${death.timeInPullSec != null ? `${fmtTime(death.timeInPullSec)} into pull` : esc(death.timeLabel || '')}</span>
+      <span class="death-kb">${kbTxt}</span>
+      <span class="death-toggle">${open ? '▾' : '▸'}</span>
+    </button>
+    ${open ? `<div class="death-detail-inline">${deathDetailHtml(death)}</div>` : ''}
+  </div>`;
 }
 
 function renderDeathPulls() {
@@ -337,78 +368,138 @@ function renderDeathPulls() {
     }
   }
   container.innerHTML = html || '<p class="muted">No deaths found in this log.</p>';
-  container.querySelectorAll('.death-row').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const [pullIndex, player, tsIso] = btn.dataset.deathKey.split('|');
-      const all = [...(deathResult.pulls || []).flatMap((p) => p.deaths || []), ...(deathResult.outsideDeaths || [])];
-      const death = all.find((d) => String(d.pullIndex) === pullIndex && d.player === player && d.tsIso === tsIso);
-      if (death) { currentDeath = death; renderDeathDetail(); }
-    });
-  });
+  bindDeathInteractions(container);
 }
 
-function renderDeathDetail() {
-  const d = currentDeath;
-  if (!d) return;
-  const kb = d.killingBlow;
-  const defList = (list) => list.length
-    ? `<ul class="def-list">${list.map((x) => `<li><b>${esc(x.name)}</b> <span class="muted small">(${x.cooldownSec}s CD${x.secondsLeft != null ? ` · ${x.secondsLeft}s left` : x.secondsSinceCast != null ? ` · used ${x.secondsSinceCast}s before death` : x.note ? ` · ${esc(x.note)}` : ''})</span></li>`).join('')}</ul>`
-    : '<p class="muted small">None.</p>';
-  $('deathDetail').innerHTML = `
-    <div class="death-detail">
-      <h3>${esc(d.player)}${d.playerClass ? ` <span class="muted">(${esc(d.playerClass)})</span>` : ''}</h3>
-      <p class="muted small">${esc(d.encounterName || 'Outside encounter')} · pull ${d.pullIndex || '–'} · ${d.timeInPullSec != null ? fmtTime(d.timeInPullSec) + ' into pull' : esc(d.timeLabel || '')} · ${esc(d.dateLabel || '')} ${esc(d.timeLabel || '')}</p>
-      <p>${verdictBadge(d.verdict)} <span class="muted small">${d.verdict === 'unknown' ? 'Mark the killing blow below from Blizzard\'s damage meter to classify this death.' : ''}</span></p>
-      <h4>Killing blow</h4>
-      ${kb ? `<p><b>${esc(kb.spell)}</b> from ${esc(kb.source)} — ${num(kb.amount)} damage${kb.overkill > 0 ? `, ${num(kb.overkill)} overkill (${num(kb.effectiveAmount)} effective)` : ''}${kb.hpAfter != null ? ` · HP after: ${num(kb.hpAfter)}` : ''} · ${avoidableLabel(kb.avoidable)}</p>`
-        : '<p class="muted">No damaging hit in the window — this death may be from a mechanic with no damage line (e.g. a fall, an instant kill, or a hit just outside the window).</p>'}
-      <h4>Damage in the last ${$('deathWindow').value || 10}s — ${num(d.totalDamage)} total</h4>
-      <table class="death-table">
-        <thead><tr><th>Spell</th><th>Source</th><th>Hits</th><th>Total</th><th>Max hit</th><th>Avoidable</th><th>Mark</th></tr></thead>
-        <tbody>${d.damageBySpell.map((s) => `<tr>
-          <td>${esc(s.spell)}</td><td>${esc(s.source)}</td><td>${s.hits}</td><td>${num(s.total)}</td><td>${num(s.maxHit)}</td><td>${avoidableLabel(s.avoidable)}</td>
-          <td><button data-mark="avoidable" data-spell-id="${esc(s.spellId)}" data-spell-name="${esc(s.spell)}">Avoidable</button>
-          <button data-mark="unavoidable" data-spell-id="${esc(s.spellId)}" data-spell-name="${esc(s.spell)}">Unavoidable</button>
-          <button data-mark="unknown" data-spell-id="${esc(s.spellId)}" data-spell-name="${esc(s.spell)}">Clear</button></td>
-        </tr>`).join('') || '<tr><td colspan="7" class="muted">No damage in the window.</td></tr>'}</tbody>
-      </table>
-      <details><summary>Damage timeline (${d.damage.length} hits)</summary>
-        <table class="death-table"><thead><tr><th>Before death</th><th>Source</th><th>Spell</th><th>Amount</th><th>HP after</th></tr></thead>
-        <tbody>${d.damage.map((e) => `<tr><td>${e.msBeforeDeath}s</td><td>${esc(e.source)}</td><td>${esc(e.spell)}</td><td>${num(e.amount)}${e.overkill > 0 ? ` (${num(e.overkill)} overkill)` : ''}</td><td>${e.hpAfter != null ? num(e.hpAfter) : '–'}</td></tr>`).join('')}</tbody></table>
-      </details>
-      <h4>Healing in the window — ${num(d.totalHealingGross)} gross, ${num(d.totalHealingNet)} net</h4>
-      <table class="death-table"><thead><tr><th>Source</th><th>Gross</th><th>Net</th><th>Overheal</th></tr></thead>
-        <tbody>${d.healingBySource.map((h) => `<tr><td>${esc(h.source)}</td><td>${num(h.total)}</td><td>${num(h.net)}</td><td>${num(h.overheal)}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">No healing in the window.</td></tr>'}</tbody></table>
-      <h4>Defensives</h4>
-      <p class="muted small">${d.defensives.classKnown ? `Class from log: ${esc(d.defensives.playerClass)}.` : 'Class not found in the log (no COMBATANT_INFO for this player), so only defensives they used or had up are shown.'}</p>
-      <p><b>Active at death:</b></p>${defList(d.defensives.active)}
-      <p><b>Available (estimated):</b></p>${defList(d.defensives.available)}
-      <p><b>On cooldown:</b></p>${defList(d.defensives.onCooldown)}
-      <details><summary>All auras active at death (${d.activeAuras.length})</summary>
-        <p class="muted small">${d.activeAuras.map((a) => `${esc(a.name)} (${a.type.toLowerCase()})`).join(' · ') || 'None.'}</p>
-      </details>
-      <div class="row" style="margin-top:16px"><button id="btnCopyDeath">Copy death summary</button></div>
-    </div>`;
-  $('deathDetail').querySelectorAll('[data-mark]').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      await api.markAvoidable(btn.dataset.spellId, btn.dataset.spellName, btn.dataset.mark);
-      const key = currentDeath;
-      await parseDeathLog();
-      // Restore the same death's detail after the re-parse.
-      if (key) {
-        const all = [...(deathResult.pulls || []).flatMap((p) => p.deaths || []), ...(deathResult.outsideDeaths || [])];
-        currentDeath = all.find((x) => x.player === key.player && x.tsIso === key.tsIso) || null;
-        if (currentDeath) renderDeathDetail();
+function bindDeathInteractions(root) {
+  root.querySelectorAll('.death-row').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.deathKey;
+      expandedDeathKey = expandedDeathKey === key ? null : key;
+      renderDeathPulls();
+      if (expandedDeathKey) {
+        const wrap = root.querySelector(`.death-row-wrap.open`);
+        if (wrap) wrap.scrollIntoView({ block: 'nearest' });
       }
     });
   });
-  const copyBtn = $('btnCopyDeath');
-  if (copyBtn) copyBtn.addEventListener('click', async () => {
+  root.querySelectorAll('.spell-link').forEach((a) => {
+    a.addEventListener('click', (e) => { e.preventDefault(); if (api.openSpellPage) api.openSpellPage(a.dataset.spellId); });
+    a.addEventListener('mouseenter', (e) => showSpellTip(a, e));
+    a.addEventListener('mousemove', (e) => moveSpellTip(e));
+    a.addEventListener('mouseleave', hideSpellTip);
+  });
+  const copyBtn = root.querySelector('#btnCopyDeath');
+  if (copyBtn) copyBtn.addEventListener('click', () => {
+    const d = currentDetailDeath();
+    if (!d) return;
+    const kb = d.killingBlow;
     const kbTxt = kb ? `${kb.spell} from ${kb.source} (${num(kb.amount)}${kb.overkill > 0 ? `, ${num(kb.overkill)} overkill` : ''})` : 'no damaging hit in window';
-    const txt = `${d.player} died on ${d.encounterName || 'outside encounter'} (${d.timeInPullSec != null ? fmtTime(d.timeInPullSec) + ' into pull' : d.timeLabel}). Killing blow: ${kbTxt}. Verdict: ${avoidableLabel(d.verdict)}. Damage in last 10s: ${num(d.totalDamage)} (${d.damageBySpell.map((s) => `${s.spell} ${num(s.total)}`).join(', ')}). Healing: ${num(d.totalHealingNet)} net. Defensives active: ${d.defensives.active.map((x) => x.name).join(', ') || 'none'}; available: ${d.defensives.available.map((x) => x.name).join(', ') || 'none'}; on cooldown: ${d.defensives.onCooldown.map((x) => `${x.name} (${x.secondsLeft}s left)`).join(', ') || 'none'}.`;
-    try { await navigator.clipboard.writeText(txt); $('deathStatus').textContent = 'Death summary copied to clipboard.'; } catch (_) { $('deathStatus').textContent = 'Could not copy — clipboard unavailable.'; }
+    const txt = `${d.player} died on ${d.encounterName || 'outside encounter'} (${d.timeInPullSec != null ? fmtTime(d.timeInPullSec) + ' into pull' : d.timeLabel}). Killing blow: ${kbTxt}. Damage in last ${$('deathWindow').value || 10}s: ${num(d.totalDamage)} (${d.damageBySpell.map((s) => `${s.spell} ${num(s.total)}`).join(', ')}). Healing: ${num(d.totalHealingNet)} net. Defensives active: ${d.defensives.active.map((x) => x.name).join(', ') || 'none'}; available: ${d.defensives.available.map((x) => x.name).join(', ') || 'none'}; on cooldown: ${d.defensives.onCooldown.map((x) => `${x.name} (${x.secondsLeft}s left)`).join(', ') || 'none'}.`;
+    navigator.clipboard.writeText(txt).then(() => { $('deathStatus').textContent = 'Death summary copied to clipboard.'; }).catch(() => { $('deathStatus').textContent = 'Could not copy — clipboard unavailable.'; });
   });
 }
+function currentDetailDeath() {
+  if (!expandedDeathKey || !deathResult) return null;
+  const all = [...(deathResult.pulls || []).flatMap((p) => p.deaths || []), ...(deathResult.outsideDeaths || [])];
+  return all.find((d) => deathKey(d) === expandedDeathKey) || null;
+}
+
+// One shared floating tooltip for spell hovers, so the
+// description (not just the name) shows on mouseover.
+let spellTipEl = null;
+function spellTip() {
+  if (!spellTipEl) {
+    spellTipEl = document.createElement('div');
+    spellTipEl.className = 'spell-tip';
+    spellTipEl.style.display = 'none';
+    document.body.appendChild(spellTipEl);
+  }
+  return spellTipEl;
+}
+function tipHtmlFor(name, spellId, desc, source) {
+  return `<b>${esc(name)}</b> <span class="muted small">spell ${esc(spellId)}</span><br>${desc ? esc(desc) : '<span class="muted">No description in the combat log. Click to open this spell on Wowhead.</span>'}${source ? `<br><span class="muted small">${esc(source)}</span>` : ''}`;
+}
+async function showSpellTip(a, e) {
+  const el = spellTip();
+  const name = a.dataset.spellName, id = a.dataset.spellId;
+  const localDesc = a.dataset.desc || null;
+  if (localDesc) { el.innerHTML = tipHtmlFor(name, id, localDesc, 'From the app\'s defensive database'); }
+  else if (spellInfoCache.has(id)) {
+    const info = spellInfoCache.get(id);
+    el.innerHTML = tipHtmlFor(info.name || name, id, info.desc, info.desc ? 'From Wowhead' : null);
+  } else {
+    el.innerHTML = tipHtmlFor(name, id, null, null);
+    if (api.lookupSpell) {
+      try {
+        const info = await api.lookupSpell(id);
+        if (info) {
+          spellInfoCache.set(String(id), info);
+          // If the mouse is still on this spell, refresh the tip.
+          if (el.style.display !== 'none' && document.querySelector('.spell-link:hover') === a) {
+            el.innerHTML = tipHtmlFor(info.name || name, id, info.desc, info.desc ? 'From Wowhead' : null);
+          }
+        }
+      } catch (_) { /* keep the fallback text */ }
+    }
+  }
+  el.style.display = 'block';
+  moveSpellTip(e);
+}
+function moveSpellTip(e) {
+  const el = spellTip();
+  if (el.style.display === 'none') return;
+  const w = 320;
+  el.style.left = Math.min(e.clientX + 14, window.innerWidth - w - 10) + 'px';
+  el.style.top = Math.min(e.clientY + 14, window.innerHeight - 80) + 'px';
+}
+function hideSpellTip() { spellTip().style.display = 'none'; }
+
+function deathDetailHtml(d) {
+  const kb = d.killingBlow;
+  const windowSec = $('deathWindow').value || 10;
+  // One combined timeline, chronological: damage (red) and
+  // healing (green) together, oldest first, killing blow last.
+  const timeline = [
+    ...d.damage.map((e) => ({ kind: 'damage', ...e })),
+    ...d.healing.map((e) => ({ kind: 'heal', ...e })),
+  ].sort((a, b) => b.msBeforeDeath - a.msBeforeDeath);
+  const defList = (list) => list.length
+    ? `<ul class="def-list">${list.map((x) => `<li>${spellLinkHtml(x.name, x.id, 'def-link', x.desc)} <span class="muted small">(${x.cooldownSec}s CD${x.secondsLeft != null ? ` · ${x.secondsLeft}s left` : x.secondsSinceCast != null ? ` · used ${x.secondsSinceCast}s before death` : x.note ? ` · ${esc(x.note)}` : ''})</span></li>`).join('')}</ul>`
+    : '<p class="muted small">None.</p>';
+  // Defensive links carry their description for the hover tip.
+  const defHtml = defList(d.defensives.active) + '<p><b>Available (estimated):</b></p>' + defList(d.defensives.available) + '<p><b>On cooldown:</b></p>' + defList(d.defensives.onCooldown);
+  return `
+      <h3 style="color:${classColor(d.playerClass)}">${classIconHtml(d.playerClass, 24)}${esc(d.player)}${d.playerClass ? ` <span class="muted">(${esc(d.playerClass)})</span>` : ''}</h3>
+      <p class="muted small">${esc(d.encounterName || 'Outside encounter')} · pull ${d.pullIndex || '–'} · ${d.timeInPullSec != null ? fmtTime(d.timeInPullSec) + ' into pull' : esc(d.timeLabel || '')} · ${esc(d.dateLabel || '')} ${esc(d.timeLabel || '')}</p>
+      <h4>Killing blow</h4>
+      ${kb ? `<p>${spellLinkHtml(kb.spell, kb.spellId)} from ${esc(kb.source)} — <span class="amt-dmg">${num(kb.amount)} damage</span>${kb.overkill > 0 ? `, ${num(kb.overkill)} overkill (${num(kb.effectiveAmount)} effective)` : ''}${kb.hpAfter != null ? ` · HP after: ${num(kb.hpAfter)}` : ''}</p>`
+        : '<p class="muted">No damaging hit in the window — this death may be from a mechanic with no damage line (e.g. a fall, an instant kill, or a hit just outside the window).</p>'}
+      <h4>Damage by spell — <span class="amt-dmg">${num(d.totalDamage)} total</span></h4>
+      <table class="death-table">
+        <thead><tr><th>Spell</th><th>Source</th><th>Hits</th><th>Total</th><th>Max hit</th></tr></thead>
+        <tbody>${d.damageBySpell.map((s) => `<tr>
+          <td>${spellLinkHtml(s.spell, s.spellId)}</td><td>${esc(s.source)}</td><td>${s.hits}</td><td class="amt-dmg">${num(s.total)}</td><td>${num(s.maxHit)}</td>
+        </tr>`).join('') || '<tr><td colspan="5" class="muted">No damage in the window.</td></tr>'}</tbody>
+      </table>
+      <h4>Healing by source — <span class="amt-heal">${num(d.totalHealingGross)} gross, ${num(d.totalHealingNet)} net</span></h4>
+      <table class="death-table"><thead><tr><th>Source</th><th>Gross</th><th>Net</th><th>Overheal</th></tr></thead>
+        <tbody>${d.healingBySource.map((h) => `<tr><td>${esc(h.source)}</td><td class="amt-heal">${num(h.total)}</td><td>${num(h.net)}</td><td>${num(h.overheal)}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">No healing in the window.</td></tr>'}</tbody></table>
+      <h4>Timeline — every damage and healing event in the last ${windowSec}s</h4>
+      <table class="death-table timeline-table"><thead><tr><th>Before death</th><th>Type</th><th>Source</th><th>Spell</th><th>Amount</th><th>HP after</th></tr></thead>
+        <tbody>${timeline.map((e) => `<tr class="${e.kind === 'heal' ? 'row-heal' : 'row-dmg'}">
+          <td>${e.msBeforeDeath}s</td><td>${e.kind === 'heal' ? 'Heal' : 'Damage'}</td><td>${esc(e.source)}</td>
+          <td>${spellLinkHtml(e.spell, e.spellId)}</td>
+          <td class="${e.kind === 'heal' ? 'amt-heal' : 'amt-dmg'}">${e.kind === 'heal' ? `+${num(e.amount)}${e.overheal > 0 ? ` (${num(e.overheal)} overheal)` : ''}` : `${num(e.amount)}${e.overkill > 0 ? ` (${num(e.overkill)} overkill)` : ''}`}</td>
+          <td>${e.hpAfter != null ? num(e.hpAfter) : '–'}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">No events in the window.</td></tr>'}</tbody></table>
+      <h4>Defensives</h4>
+      <p class="muted small">${d.defensives.classKnown ? `Class from log: ${esc(d.defensives.playerClass)}.` : 'Class not found in the log (no COMBATANT_INFO for this player), so only defensives they used or had up are shown.'} "Available" is an estimate: talents can change cooldowns, and a wipe may reset them.</p>
+      <p><b>Active at death:</b></p>${defHtml}
+      <h4>All auras active at death (${d.activeAuras.length})</h4>
+      ${d.activeAuras.length ? `<ul class="aura-list">${d.activeAuras.map((a) => `<li><span class="badge ${a.type === 'DEBUFF' ? 'bad' : 'good'}">${a.type === 'DEBUFF' ? 'Debuff' : 'Buff'}</span> ${spellLinkHtml(a.name, a.spellId)} <span class="muted small">from ${esc(a.source || 'unknown')} · spell ${esc(a.spellId)}</span></li>`).join('')}</ul>` : '<p class="muted small">None.</p>'}
+      <div class="row" style="margin-top:16px"><button id="btnCopyDeath">Copy death summary</button></div>`;
+}
+
 
 $('btnPickLog').addEventListener('click', async () => {
   const p = await api.pickDeathLog();

@@ -15,8 +15,8 @@ contextBridge.exposeInMainWorld('gearAudit', {
   // Death Analyzer
   pickDeathLog: () => ipcRenderer.invoke('dialog:pick-log'),
   parseDeathLog: (filePath, windowSec) => ipcRenderer.invoke('death:parse-log', filePath, windowSec),
-  getAvoidableMarks: () => ipcRenderer.invoke('death:marks-get'),
-  markAvoidable: (spellId, spellName, status) => ipcRenderer.invoke('death:mark-avoidable', spellId, spellName, status),
+  openSpellPage: (spellId) => ipcRenderer.invoke('death:open-spell', spellId),
+  lookupSpell: (spellId) => ipcRenderer.invoke('spell:lookup', spellId),
   onDeathProgress: (cb) => ipcRenderer.on('death:progress', (_e, p) => cb(p)),
   // Self-update
   appCurrentVersion: () => ipcRenderer.invoke('app-update:current'),

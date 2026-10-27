@@ -177,21 +177,45 @@ ipcMain.handle('dialog:pick-log', async () => {
   return res.filePaths[0];
 });
 ipcMain.handle('death:parse-log', async (event, filePath, windowSec) => {
-  const marks = (settings.avoidableMarks && typeof settings.avoidableMarks === 'object') ? settings.avoidableMarks : {};
-  return parseCombatLogFile(filePath, { windowSec: windowSec || 10, avoidableMarks: marks }, (p) => {
+  // Avoidable is removed from the UI for now (it needs a
+  // reliable source first), so no marks are passed in — every
+  // spell stays unclassified and no verdict is shown.
+  return parseCombatLogFile(filePath, { windowSec: windowSec || 10, avoidableMarks: {} }, (p) => {
     if (event.sender && !event.sender.isDestroyed()) event.sender.send('death:progress', p);
   });
 });
-ipcMain.handle('death:marks-get', () => {
-  return (settings.avoidableMarks && typeof settings.avoidableMarks === 'object') ? settings.avoidableMarks : {};
+ipcMain.handle('death:open-spell', (_e, spellId) => {
+  if (spellId && spellId !== '0') shell.openExternal(`https://www.wowhead.com/spell=${spellId}`);
 });
-ipcMain.handle('death:mark-avoidable', (_e, spellId, spellName, status) => {
-  if (!settings.avoidableMarks || typeof settings.avoidableMarks !== 'object') settings.avoidableMarks = {};
-  if (status === 'unknown' || !status) delete settings.avoidableMarks[String(spellId)];
-  else settings.avoidableMarks[String(spellId)] = { name: spellName || '', status };
+// Spell info for hover tooltips: Wowhead's public tooltip
+// endpoint returns name, icon and tooltip HTML for a spell ID.
+// Results are cached in settings so a spell is only fetched
+// once; a failure returns null (never a guessed description)
+// and is not cached, so it can be retried later.
+ipcMain.handle('spell:lookup', async (_e, spellId) => {
+  if (!spellId || spellId === '0') return null;
+  if (!settings.spellInfo || typeof settings.spellInfo !== 'object') settings.spellInfo = {};
+  if (settings.spellInfo[String(spellId)]) return settings.spellInfo[String(spellId)];
+  const https = require('https');
+  const fetchJson = (url) => new Promise((resolve) => {
+    const req = https.get(url, { headers: { Accept: 'application/json', 'User-Agent': 'TylersWoWTools/0.1.3' } }, (res) => {
+      let body = '';
+      res.on('data', (c) => { body += c; if (body.length > 200000) req.destroy(); });
+      res.on('end', () => { try { resolve(JSON.parse(body)); } catch (_) { resolve(null); } });
+    });
+    req.on('error', () => resolve(null));
+    req.setTimeout(8000, () => { req.destroy(); resolve(null); });
+  });
+  const data = await fetchJson(`https://www.wowhead.com/tooltip/spell=${spellId}`);
+  if (!data || !data.name) return null;
+  const desc = String(data.tooltip || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 400);
+  const info = { name: data.name, icon: data.icon || null, desc: desc || null };
+  settings.spellInfo[String(spellId)] = info;
   saveSettings();
-  return settings.avoidableMarks;
+  return info;
 });
+
+
 
 // ---- Self-update (the app itself, not the addon) ----
 ipcMain.handle('app-update:current', () => appUpdater.currentVersion());
