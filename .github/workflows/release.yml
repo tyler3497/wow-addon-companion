@@ -1,0 +1,39 @@
+# Build and publish a Windows release whenever a version tag is pushed.
+#
+# How to ship a new version:
+#   1. Bump "version" in package.json (and the About text in
+#      src/renderer/index.html).
+#   2. git tag v1.2.0 && git push origin v1.2.0
+#   3. This workflow builds the NSIS installer on a real Windows
+#      runner (building an NSIS installer on Linux needs Wine, so
+#      CI is the reliable route) and publishes it as a GitHub
+#      Release, including latest.yml — the file electron-updater
+#      reads to discover the new version.
+#
+# Users on an installer build then see the update in the app's
+# App Updates view (auto-checked on launch) and can Download,
+# then Install & Restart. Folder builds made with
+# `npm run pack:win` have no update feed and cannot self-update;
+# they are for quick distribution only.
+name: Release Windows build
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run dist:win -- --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
