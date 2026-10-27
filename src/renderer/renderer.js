@@ -336,7 +336,7 @@ function deathRowHtml(death) {
   const open = expandedDeathKey === deathKey(death);
   return `<div class="death-row-wrap ${open ? 'open' : ''}">
     <button class="death-row" data-death-key="${esc(deathKey(death))}">
-      <span class="death-player" style="color:${classColor(death.playerClass)}">${classIconHtml(death.playerClass)}${esc(death.player)}${death.playerClass ? ` <span class="muted small">(${esc(death.playerClass)})</span>` : ''}</span>
+      <span class="death-player" style="color:${classColor(death.playerClass)}">${classIconHtml(death.playerClass)}${esc(death.player)}${death.playerClass ? ` <span class="muted small">(${esc(death.playerClass)}${death.playerSpec ? ` • ${esc(death.playerSpec)}` : ''})</span>` : ''}</span>
       <span class="death-time">${death.timeInPullSec != null ? `${fmtTime(death.timeInPullSec)} into pull` : esc(death.timeLabel || '')}</span>
       <span class="death-kb">${kbTxt}</span>
       <span class="death-toggle">${open ? '▾' : '▸'}</span>
@@ -371,6 +371,34 @@ function renderDeathPulls() {
   bindDeathInteractions(container);
 }
 
+const failedSpellIds = new Set();
+// When a death opens, fetch spell info (icon + description)
+// for every spell in it up front, in small parallel batches,
+// so icons are already there instead of appearing only after
+// a hover. Already-cached and previously-failed IDs are skipped;
+// after the fetch, re-render so the icons appear.
+async function prefetchDeathSpells(death, key) {
+  if (!api.lookupSpell) return;
+  const ids = new Set();
+  const add = (id) => { if (id && id !== '0' && id !== 0) ids.add(String(id)); };
+  if (death.killingBlow) add(death.killingBlow.spellId);
+  (death.damageBySpell || []).forEach((x) => add(x.spellId));
+  (death.healing || []).forEach((x) => add(x.spellId));
+  (death.activeAuras || []).forEach((x) => add(x.spellId));
+  ['active', 'available', 'onCooldown'].forEach((list) => (death.defensives[list] || []).forEach((x) => add(x.id)));
+  const todo = [...ids].filter((id) => !spellInfoCache.has(id) && !failedSpellIds.has(id));
+  for (let i = 0; i < todo.length; i += 8) {
+    const batch = todo.slice(i, i + 8);
+    const results = await Promise.allSettled(batch.map((id) => api.lookupSpell(id)));
+    results.forEach((r, j) => {
+      if (r.status === 'fulfilled' && r.value) spellInfoCache.set(batch[j], r.value);
+      else failedSpellIds.add(batch[j]);
+    });
+    if (expandedDeathKey !== key) return; // user moved on; stop fetching
+  }
+  if (expandedDeathKey === key) renderDeathPulls();
+}
+
 function bindDeathInteractions(root) {
   root.querySelectorAll('.death-row').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -380,6 +408,8 @@ function bindDeathInteractions(root) {
       if (expandedDeathKey) {
         const wrap = root.querySelector(`.death-row-wrap.open`);
         if (wrap) wrap.scrollIntoView({ block: 'nearest' });
+        const death = currentDetailDeath();
+        if (death) prefetchDeathSpells(death, key);
       }
     });
   });
@@ -470,7 +500,7 @@ function deathDetailHtml(d) {
   // Defensive links carry their description for the hover tip.
   const defHtml = defList(d.defensives.active) + '<p><b>Available (estimated):</b></p>' + defList(d.defensives.available) + '<p><b>On cooldown:</b></p>' + defList(d.defensives.onCooldown);
   return `
-      <h3 style="color:${classColor(d.playerClass)}">${classIconHtml(d.playerClass, 24)}${esc(d.player)}${d.playerClass ? ` <span class="muted">(${esc(d.playerClass)})</span>` : ''}</h3>
+      <h3 style="color:${classColor(d.playerClass)}">${classIconHtml(d.playerClass, 24)}${esc(d.player)}${d.playerClass ? ` <span class="muted">(${esc(d.playerClass)}${d.playerSpec ? ` • ${esc(d.playerSpec)}` : ''})</span>` : ''}</h3>
       <p class="muted small">${esc(d.encounterName || 'Outside encounter')} · pull ${d.pullIndex || '–'} · ${d.timeInPullSec != null ? fmtTime(d.timeInPullSec) + ' into pull' : esc(d.timeLabel || '')} · ${esc(d.dateLabel || '')} ${esc(d.timeLabel || '')}</p>
       <h4>Killing blow</h4>
       ${kb ? `<p>${spellLinkHtml(kb.spell, kb.spellId)} from ${esc(kb.source)} — <span class="amt-dmg">${num(kb.amount)} damage</span>${kb.overkill > 0 ? `, ${num(kb.overkill)} overkill (${num(kb.effectiveAmount)} effective)` : ''}${kb.hpAfter != null ? ` · HP after: ${num(kb.hpAfter)}` : ''}</p>`
@@ -493,7 +523,7 @@ function deathDetailHtml(d) {
           <td class="${e.kind === 'heal' ? 'amt-heal' : 'amt-dmg'}">${e.kind === 'heal' ? `+${num(e.amount)}${e.overheal > 0 ? ` (${num(e.overheal)} overheal)` : ''}` : `${num(e.amount)}${e.overkill > 0 ? ` (${num(e.overkill)} overkill)` : ''}`}</td>
           <td>${e.hpAfter != null ? num(e.hpAfter) : '–'}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">No events in the window.</td></tr>'}</tbody></table>
       <h4>Defensives</h4>
-      <p class="muted small">${d.defensives.classKnown ? `Class from log: ${esc(d.defensives.playerClass)}.` : 'Class not found in the log (no COMBATANT_INFO for this player), so only defensives they used or had up are shown.'} "Available" is an estimate: talents can change cooldowns, and a wipe may reset them.</p>
+      <p class="muted small">${d.defensives.classKnown ? `Spec from log: ${esc(d.defensives.playerClass)}${d.playerSpec ? ` • ${esc(d.playerSpec)}` : ''} — the available/on-cooldown lists are filtered to that spec where the database knows a restriction.` : 'Class not found in the log (no COMBATANT_INFO for this player), so only defensives they used or had up are shown.'} "Available" is an estimate: talents can change cooldowns, and a wipe may reset them. A defensive actually cast or active in the log is always shown, even if it falls outside the spec list.</p>
       <p><b>Active at death:</b></p>${defHtml}
       <h4>All auras active at death (${d.activeAuras.length})</h4>
       ${d.activeAuras.length ? `<ul class="aura-list">${d.activeAuras.map((a) => `<li><span class="badge ${a.type === 'DEBUFF' ? 'bad' : 'good'}">${a.type === 'DEBUFF' ? 'Debuff' : 'Buff'}</span> ${spellLinkHtml(a.name, a.spellId)} <span class="muted small">from ${esc(a.source || 'unknown')} · spell ${esc(a.spellId)}</span></li>`).join('')}</ul>` : '<p class="muted small">None.</p>'}

@@ -45,7 +45,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const readline = require('readline');
-const { defensiveById, defensivesForClass, classForSpec } = require('./defensives');
+const { defensiveById, defensivesForSpec, classForSpec, specNameForSpec, effectiveCooldown } = require('./defensives');
 
 const TS_RE = /^(\d{1,2})\/(\d{1,2})\/(\d{4}) (\d{1,2}):(\d{1,2}):(\d{1,2})\.(\d+)(?:-\d+)?\s+(.*)$/;
 const DAMAGE_EVENTS = new Set(['SPELL_DAMAGE', 'SPELL_PERIODIC_DAMAGE', 'SPELL_BUILDING_DAMAGE', 'RANGE_DAMAGE', 'SWING_DAMAGE', 'SWING_DAMAGE_LANDED']);
@@ -136,12 +136,25 @@ function createAnalyzer(opts) {
   function defensivesForDeath(guid, deathMs, activeAuras) {
     const specId = playerSpec.get(guid);
     const cls = specId ? classForSpec(specId) : null;
+    const spec = specId ? specNameForSpec(specId) : null;
     const castMap = lastDefensiveCast.get(guid) || new Map();
-    // Candidates: the player's whole class list when known,
-    // otherwise only defensives they actually cast or have up.
+    // Candidates: the player's SPEC list when known, so a
+    // Protection Warrior is not shown Arms/Fury defensives and
+    // vice versa. Spec filtering never hides a fact, though:
+    // defensives the player actually cast or had active in this
+    // log are always added back in, even if they fall outside
+    // the spec list (the database is not exhaustive).
     let candidates;
-    if (cls) candidates = defensivesForClass(cls);
-    else {
+    if (cls) {
+      const seen = new Set();
+      candidates = [];
+      for (const d of defensivesForSpec(cls, spec)) { if (!seen.has(d.id)) { seen.add(d.id); candidates.push(d); } }
+      const extraIds = new Set([...castMap.keys(), ...[...activeAuras.values()].map((a) => a.spellId).filter((id) => defensiveById(id))]);
+      for (const id of extraIds) {
+        const d = defensiveById(id);
+        if (d && !seen.has(d.id)) { seen.add(d.id); candidates.push(d); }
+      }
+    } else {
       const ids = new Set([...castMap.keys(), ...[...activeAuras.values()].map((a) => a.spellId).filter((id) => defensiveById(id))]);
       candidates = [...ids].map((id) => defensiveById(id)).filter(Boolean);
     }
@@ -149,20 +162,21 @@ function createAnalyzer(opts) {
     const available = [];
     const onCooldown = [];
     for (const d of candidates) {
+      const cd = effectiveCooldown(d, spec);
       if (activeAuras.has(String(d.id))) {
-        active.push({ id: d.id, name: d.name, cls: d.cls, cooldownSec: d.cooldownSec, desc: d.desc || null, state: 'active' });
+        active.push({ id: d.id, name: d.name, cls: d.cls, cooldownSec: cd, desc: d.desc || null, state: 'active' });
         continue;
       }
       const last = castMap.get(String(d.id));
       if (last === undefined) {
-        available.push({ id: d.id, name: d.name, cls: d.cls, cooldownSec: d.cooldownSec, desc: d.desc || null, state: 'available', note: 'not used in this log' });
-      } else if (deathMs - last >= d.cooldownSec * 1000) {
-        available.push({ id: d.id, name: d.name, cls: d.cls, cooldownSec: d.cooldownSec, desc: d.desc || null, state: 'available', secondsSinceCast: Math.round((deathMs - last) / 1000) });
+        available.push({ id: d.id, name: d.name, cls: d.cls, cooldownSec: cd, desc: d.desc || null, state: 'available', note: 'not used in this log' });
+      } else if (deathMs - last >= cd * 1000) {
+        available.push({ id: d.id, name: d.name, cls: d.cls, cooldownSec: cd, desc: d.desc || null, state: 'available', secondsSinceCast: Math.round((deathMs - last) / 1000) });
       } else {
-        onCooldown.push({ id: d.id, name: d.name, cls: d.cls, cooldownSec: d.cooldownSec, desc: d.desc || null, state: 'cooldown', secondsLeft: Math.ceil((last + d.cooldownSec * 1000 - deathMs) / 1000), secondsSinceCast: Math.round((deathMs - last) / 1000) });
+        onCooldown.push({ id: d.id, name: d.name, cls: d.cls, cooldownSec: cd, desc: d.desc || null, state: 'cooldown', secondsLeft: Math.ceil((last + cd * 1000 - deathMs) / 1000), secondsSinceCast: Math.round((deathMs - last) / 1000) });
       }
     }
-    return { active, available, onCooldown, playerClass: cls, classKnown: !!cls };
+    return { active, available, onCooldown, playerClass: cls, playerSpec: spec, classKnown: !!cls };
   }
 
   function feed(line) {
@@ -241,6 +255,7 @@ function createAnalyzer(opts) {
       const death = {
         player: name, guid,
         playerClass: defensives.playerClass,
+        playerSpec: defensives.playerSpec || null,
         tsMs: ms, tsIso: new Date(ms).toISOString(), timeLabel: label, dateLabel,
         pullIndex: currentPull ? currentPull.index : null,
         encounterName: currentPull ? currentPull.name : null,

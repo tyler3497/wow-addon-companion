@@ -36,11 +36,20 @@ https://github.com/tyler3497/wow-gear-audit
   into active / available (estimated from last cast +
   cooldown) / on cooldown.
 - Player names are colored by class (with a class icon) and
+  shown with their spec from the log (e.g. Warrior • Arms);
   the timeline color-codes damage red and healing green.
+- Defensives are spec-aware: the available/on-cooldown lists
+  are filtered to the player's spec where the database knows
+  a restriction (e.g. a Protection Warrior does not see
+  Die by the Sword, an Arms Warrior does not see Last Stand),
+  while a defensive actually cast or active in the log is
+  always shown even if it falls outside the spec list.
 - Hover any spell name for what it does: defensives use the
   app's own database, other spells are looked up from
   Wowhead's public tooltip endpoint and cached (a failed
   lookup shows no description rather than a guessed one).
+  When a death opens, every spell in it is looked up up
+  front so the icons show immediately, not just on hover.
   Clicking a spell opens its Wowhead page.
 - "Avoidable" is currently not shown at all: the combat log
   carries no avoidable flag, so it will come back only once
