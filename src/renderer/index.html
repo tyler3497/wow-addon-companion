@@ -69,11 +69,13 @@
 
     <section id="view-death-analyzer" class="view">
       <h2>Death Analyzer</h2>
-      <p class="muted">Reads a combat log from <code>/combatlog</code> in game (<code>Logs\WoWCombatLog.txt</code> — a zip of one works too) and shows every player death, pull by pull. Click a death and it expands in place with the killing blow, damage and healing totals, a full event timeline for the window you picked, defensives, and every aura that was up.</p>
+      <p class="muted">Reads a combat log from <code>/combatlog</code> in game (<code>Logs\WoWCombatLog.txt</code> — a zip of one works too) and shows every player death, pull by pull. Click a death and it expands in place with the killing blow, damage and healing totals, a full event timeline for the window you picked, defensives, and every aura that was up. <b>Watch live log…</b> tails the game's log while you raid, so deaths from a wipe show up within a second or two, newest pull first.</p>
       <p class="muted small">Advanced Combat Logging gives HP-after-hit on every line; without it, amounts still parse but HP is missing. Hover any spell name for what it does (defensives from the app's database, other spells from Wowhead when online); clicking a spell opens its Wowhead page. Player names are colored by class, damage is red, healing is green.</p>
 
       <div class="row">
         <button id="btnPickLog" class="primary">Open Combat Log…</button>
+        <button id="btnWatchLive">Watch live log…</button>
+        <button id="btnStopLive" style="display:none">Stop watching</button>
         <label class="field-label inline-label" for="deathWindow">Window before death</label>
         <select id="deathWindow">
           <option value="5">5 seconds</option>

@@ -17,7 +17,7 @@
   "scripts": {
     "pack:win": "electron-packager . TylersWoWTools --platform=win32 --arch=x64 --out=dist --overwrite --prune=true",
     "start": "electron .",
-    "test:core": "node src/core/updater.test.js && node src/core/deathAnalyzer.test.js && node src/core/spellCache.test.js",
+    "test:core": "node src/core/updater.test.js && node src/core/deathAnalyzer.test.js && node src/core/spellCache.test.js && node src/core/logWatcher.test.js",
     "dist:win": "electron-builder --win nsis --publish never",
     "dist:linux": "electron-builder --linux AppImage --publish never"
   },

@@ -7,7 +7,9 @@ const path = require('path');
 const fs = require('fs');
 const updater = require('./core/updater');
 const { ADDONS, getAddon } = require('./core/addons');
-const { parseCombatLogFile } = require('./core/deathAnalyzer');
+const { parseCombatLogFile, createAnalyzer } = require('./core/deathAnalyzer');
+const { watchLogFile } = require('./core/logWatcher');
+const readline = require('readline');
 const appUpdater = require('./core/appUpdater');
 
 let mainWindow = null;
@@ -183,6 +185,86 @@ ipcMain.handle('death:parse-log', async (event, filePath, windowSec) => {
   return parseCombatLogFile(filePath, { windowSec: windowSec || 10, avoidableMarks: {} }, (p) => {
     if (event.sender && !event.sender.isDestroyed()) event.sender.send('death:progress', p);
   });
+});
+// Live log watching for raid night: the game appends to
+// WoWCombatLog.txt while /combatlog is on, so the app can
+// tail it and surface deaths (and the save analysis) within
+// a second or two of a wipe, without re-parsing the file.
+// History already in the file is streamed in first, then
+// the watcher starts at the end of the file. If WoW
+// truncates the log (a new /combatlog session), the analyzer
+// resets and starts over. Updates are only sent when a new
+// death or pull appears, so idle raid time sends nothing.
+let liveWatch = null;
+ipcMain.handle('dialog:pick-live-log', async () => {
+  let defaultPath;
+  try {
+    const retail = settings.addOnsPaths && settings.addOnsPaths.retail;
+    if (retail) {
+      const logsDir = path.join(retail, '..', '..', '..', 'Logs');
+      if (fs.existsSync(logsDir)) defaultPath = logsDir;
+    }
+  } catch (_) {}
+  const res = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openFile'],
+    title: 'Pick the live combat log (WoWCombatLog.txt)',
+    filters: [{ name: 'Combat logs', extensions: ['txt'] }],
+    defaultPath,
+  });
+  if (res.canceled || !res.filePaths[0]) return null;
+  return res.filePaths[0];
+});
+ipcMain.handle('death:watch-log', async (event, filePath, windowSec) => {
+  if (liveWatch) { liveWatch.stop(); liveWatch = null; }
+  const sender = event.sender;
+  let analyzer = createAnalyzer({ windowSec: windowSec || 10, avoidableMarks: {} });
+  let lastDeaths = -1;
+  let lastPulls = -1;
+  const maybeSend = () => {
+    const result = analyzer.finish();
+    if (result.totalPlayerDeaths === lastDeaths && result.pulls.length === lastPulls) return;
+    lastDeaths = result.totalPlayerDeaths;
+    lastPulls = result.pulls.length;
+    if (sender && !sender.isDestroyed()) sender.send('death:live-update', result);
+  };
+  // Stream in whatever is already in the file, then watch
+  // from the end. (A full re-parse on every poll would be
+  // far too slow on a raid night's log.)
+  try {
+    const stream = fs.createReadStream(filePath, { encoding: 'utf8' });
+    const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
+    for await (const line of rl) analyzer.feed(line);
+  } catch (e) {
+    if (sender && !sender.isDestroyed()) sender.send('death:live-status', { state: 'error', message: String(e.message || e) });
+    return { ok: false, error: String(e.message || e) };
+  }
+  maybeSend();
+  let sizeAtStart = 0;
+  try { sizeAtStart = fs.statSync(filePath).size; } catch (_) {}
+  liveWatch = watchLogFile(filePath, {
+    intervalMs: 1000,
+    startOffset: sizeAtStart,
+    onLines: (lines) => { for (const line of lines) analyzer.feed(line); maybeSend(); },
+    onReset: () => {
+      analyzer = createAnalyzer({ windowSec: windowSec || 10, avoidableMarks: {} });
+      lastDeaths = -1;
+      lastPulls = -1;
+      maybeSend();
+    },
+    onMissing: () => {
+      if (sender && !sender.isDestroyed()) sender.send('death:live-status', { state: 'missing', path: filePath });
+    },
+    onError: (e) => {
+      if (sender && !sender.isDestroyed()) sender.send('death:live-status', { state: 'error', message: String(e.message || e) });
+    },
+  });
+  settings.liveLogPath = filePath;
+  saveSettings();
+  return { ok: true, path: filePath };
+});
+ipcMain.handle('death:stop-watch', () => {
+  if (liveWatch) { liveWatch.stop(); liveWatch = null; }
+  return true;
 });
 ipcMain.handle('death:open-spell', (_e, spellId) => {
   if (spellId && spellId !== '0') shell.openExternal(`https://www.wowhead.com/spell=${spellId}`);

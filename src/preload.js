@@ -15,6 +15,11 @@ contextBridge.exposeInMainWorld('gearAudit', {
   // Death Analyzer
   pickDeathLog: () => ipcRenderer.invoke('dialog:pick-log'),
   parseDeathLog: (filePath, windowSec) => ipcRenderer.invoke('death:parse-log', filePath, windowSec),
+  pickLiveLog: () => ipcRenderer.invoke('dialog:pick-live-log'),
+  watchLiveLog: (filePath, windowSec) => ipcRenderer.invoke('death:watch-log', filePath, windowSec),
+  stopLiveWatch: () => ipcRenderer.invoke('death:stop-watch'),
+  onDeathLiveUpdate: (cb) => ipcRenderer.on('death:live-update', (_e, r) => cb(r)),
+  onDeathLiveStatus: (cb) => ipcRenderer.on('death:live-status', (_e, s) => cb(s)),
   openSpellPage: (spellId) => ipcRenderer.invoke('death:open-spell', spellId),
   lookupSpell: (spellId, buildVersion) => ipcRenderer.invoke('spell:lookup', spellId, buildVersion),
   onDeathProgress: (cb) => ipcRenderer.on('death:progress', (_e, p) => cb(p)),
