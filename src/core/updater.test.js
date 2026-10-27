@@ -7,9 +7,17 @@ const path = require('path');
 const os = require('os');
 const assert = require('assert');
 const core = require('./updater');
+const { getAddon, addonsForGame } = require('./addons');
 
 (async () => {
-  const latest = await core.getLatestVersion();
+  // Registry: Gear Audit is the only addon, and it is retail.
+  assert.strictEqual(addonsForGame('retail').length, 1);
+  assert.strictEqual(addonsForGame('forever').length, 0);
+  const gearAudit = getAddon('gear-audit');
+  assert.ok(gearAudit, 'gear-audit should be registered');
+  assert.strictEqual(gearAudit.game, 'retail');
+
+  const latest = await core.getLatestVersion(gearAudit);
   console.log('latest from GitHub:', latest);
   assert.ok(latest, 'latest version should parse');
 
@@ -17,13 +25,13 @@ const core = require('./updater');
   const oldDir = path.join(mock, 'GearAudit');
   fs.mkdirSync(oldDir, { recursive: true });
   fs.writeFileSync(path.join(oldDir, 'GearAudit.toc'), '## Version: 1.4.0\nAudit.lua\n');
-  assert.strictEqual(core.getInstalledVersion(mock), '1.4.0');
+  assert.strictEqual(core.getInstalledVersion(mock, gearAudit), '1.4.0');
 
   const logs = [];
-  const installed = await core.updateAddon(mock, (m) => logs.push(m));
+  const installed = await core.updateAddon(mock, gearAudit, (m) => logs.push(m));
   console.log(logs.join('\n'));
   assert.strictEqual(installed, latest);
-  assert.strictEqual(core.getInstalledVersion(mock), latest);
+  assert.strictEqual(core.getInstalledVersion(mock, gearAudit), latest);
   const backup = fs.readdirSync(mock).find((n) => n.startsWith('GearAudit_backup_'));
   assert.ok(backup, 'old version should be backed up');
   assert.ok(fs.existsSync(path.join(mock, 'GearAudit', 'Audit.lua')));

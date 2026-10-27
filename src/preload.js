@@ -5,12 +5,12 @@ const { contextBridge, ipcRenderer } = require('electron');
 // their methods here and a matching ipcMain.handle in main.js.
 contextBridge.exposeInMainWorld('gearAudit', {
   getSettings: () => ipcRenderer.invoke('settings:get'),
-  setPath: (p) => ipcRenderer.invoke('settings:set-path', p),
-  pickAddOns: () => ipcRenderer.invoke('dialog:pick-addons'),
-  getInstalled: () => ipcRenderer.invoke('updater:installed'),
-  getLatest: () => ipcRenderer.invoke('updater:latest'),
-  update: () => ipcRenderer.invoke('updater:update'),
-  openFolder: () => ipcRenderer.invoke('updater:open-folder'),
+  setPath: (game, p) => ipcRenderer.invoke('settings:set-path', game, p),
+  pickAddOns: (game) => ipcRenderer.invoke('dialog:pick-addons', game),
+  listAddons: () => ipcRenderer.invoke('addons:list'),
+  checkAllAddons: () => ipcRenderer.invoke('updater:check-all'),
+  update: (addonId) => ipcRenderer.invoke('updater:update', addonId),
+  openFolder: (game) => ipcRenderer.invoke('updater:open-folder', game),
   onLog: (cb) => ipcRenderer.on('updater:log', (_e, msg) => cb(msg)),
   // Self-update
   appCurrentVersion: () => ipcRenderer.invoke('app-update:current'),

@@ -6,6 +6,7 @@ Menu.setApplicationMenu(null);
 const path = require('path');
 const fs = require('fs');
 const updater = require('./core/updater');
+const { ADDONS, getAddon } = require('./core/addons');
 const appUpdater = require('./core/appUpdater');
 
 let mainWindow = null;
@@ -17,7 +18,18 @@ function loadSettings() {
   try {
     if (fs.existsSync(settingsPath)) settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
   } catch (_) { settings = {}; }
-  if (!settings.addOnsPath) settings.addOnsPath = updater.detectAddOnsPath();
+  // Per-game AddOns folders, set in the Settings menu.
+  // Migration: the old single addOnsPath was always the retail
+  // folder (Gear Audit is retail), so it becomes retail's path.
+  if (!settings.addOnsPaths || typeof settings.addOnsPaths !== 'object') {
+    settings.addOnsPaths = {};
+    if (settings.addOnsPath) settings.addOnsPaths.retail = settings.addOnsPath;
+  }
+  if (!settings.addOnsPaths.retail) settings.addOnsPaths.retail = updater.detectAddOnsPath('retail');
+  if (!settings.addOnsPaths.forever) settings.addOnsPaths.forever = updater.detectAddOnsPath('forever');
+}
+function addOnsPathFor(game) {
+  return (settings.addOnsPaths && settings.addOnsPaths[game]) || '';
 }
 function saveSettings() {
   try { fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2)); } catch (_) {}
@@ -80,37 +92,61 @@ app.on('window-all-closed', () => {
 // ---- IPC: the feature API. New features add their own handlers here,
 // ---- or in their own module under src/core/, and expose them in preload.js.
 ipcMain.handle('settings:get', () => settings);
-ipcMain.handle('settings:set-path', (_e, p) => {
-  settings.addOnsPath = p;
+ipcMain.handle('settings:set-path', (_e, game, p) => {
+  if (game !== 'retail' && game !== 'forever') return settings;
+  if (!settings.addOnsPaths) settings.addOnsPaths = {};
+  settings.addOnsPaths[game] = p;
   saveSettings();
   return settings;
 });
-ipcMain.handle('dialog:pick-addons', async () => {
+ipcMain.handle('dialog:pick-addons', async (_e, game) => {
+  const label = game === 'forever' ? 'WoW Forever' : 'WoW Retail';
   const res = await dialog.showOpenDialog(mainWindow, {
     properties: ['openDirectory'],
-    title: 'Pick your WoW AddOns folder (…\\Interface\\AddOns)',
+    title: `Pick your ${label} AddOns folder (…\\Interface\\AddOns)`,
   });
   if (res.canceled || !res.filePaths[0]) return null;
-  settings.addOnsPath = res.filePaths[0];
+  if (!settings.addOnsPaths) settings.addOnsPaths = {};
+  settings.addOnsPaths[game] = res.filePaths[0];
   saveSettings();
-  return settings.addOnsPath;
+  return settings.addOnsPaths[game];
 });
-ipcMain.handle('updater:installed', () => updater.getInstalledVersion(settings.addOnsPath));
-ipcMain.handle('updater:latest', async () => updater.getLatestVersion());
-ipcMain.handle('updater:update', async (event) => {
+// The addon registry, so the renderer builds its cards from it
+// instead of hard-coding one addon.
+ipcMain.handle('addons:list', () => ADDONS);
+// One check for every registered addon, in parallel — this is
+// the "Check All for Updates" button. Each entry carries its own
+// installed/latest versions and whether an update is available.
+ipcMain.handle('updater:check-all', async () => {
+  const results = await Promise.all(ADDONS.map(async (addon) => {
+    const addOnsPath = addOnsPathFor(addon.game);
+    const installed = updater.getInstalledVersion(addOnsPath, addon);
+    try {
+      const latest = await updater.getLatestVersion(addon);
+      return { id: addon.id, name: addon.name, game: addon.game, installed, latest, updateAvailable: installed !== 'not installed' && latest !== null && installed !== latest, error: null };
+    } catch (e) {
+      return { id: addon.id, name: addon.name, game: addon.game, installed, latest: null, updateAvailable: false, error: e.message };
+    }
+  }));
+  return results;
+});
+ipcMain.handle('updater:update', async (event, addonId) => {
+  const addon = getAddon(addonId);
+  if (!addon) throw new Error(`Unknown addon: ${addonId}`);
   const log = (msg) => event.sender.send('updater:log', msg);
   // Tell the self-updater an addon update is running, so a
   // seamless app auto-install waits for it instead of
   // restarting the app mid-addon-update.
   appUpdater.setAddonUpdateRunning(true);
   try {
-    return await updater.updateAddon(settings.addOnsPath, log);
+    return await updater.updateAddon(addOnsPathFor(addon.game), addon, log);
   } finally {
     appUpdater.setAddonUpdateRunning(false);
   }
 });
-ipcMain.handle('updater:open-folder', () => {
-  if (settings.addOnsPath && fs.existsSync(settings.addOnsPath)) shell.openPath(settings.addOnsPath);
+ipcMain.handle('updater:open-folder', (_e, game) => {
+  const p = addOnsPathFor(game);
+  if (p && fs.existsSync(p)) shell.openPath(p);
 });
 
 // ---- Custom title bar controls (frameless window) ----

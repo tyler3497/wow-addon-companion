@@ -24,39 +24,45 @@
     <nav id="nav">
       <!-- Adding a feature: add a nav button here, a matching
            <section> below, and a handler in renderer.js. Each
-           feature's real work lives in src/core/<feature>.js. -->
-      <button class="nav-btn active" data-view="updater">Updater</button>
+           feature's real work lives in src/core/<feature>.js.
+           Addons are NOT added here — they live in the registry
+           in src/core/addons.js and render themselves below. -->
+      <button class="nav-btn active" data-view="addon-updater">Addon Updater</button>
       <button class="nav-btn" data-view="app-updates">App Updates</button>
       <button class="nav-btn" data-view="about">About</button>
     </nav>
-    <p class="sidebar-note">More features can plug in here later — the updater is just the first one.</p>
+    <p class="sidebar-note">More features can plug in here later — the addon updater is just the first one.</p>
+    <button id="btnSettings" class="nav-btn">⚙ Settings</button>
   </aside>
 
   <main id="main">
-    <section id="view-updater" class="view active">
+    <section id="view-addon-updater" class="view active">
       <h2>Addon Updater</h2>
-      <p class="muted">Keeps Gear Audit up to date from GitHub. Your old version is backed up before it is replaced.</p>
-
-      <label class="field-label" for="addonsPath">WoW AddOns folder</label>
-      <div class="row">
-        <input id="addonsPath" type="text" spellcheck="false" />
-        <button id="btnBrowse">Browse…</button>
-      </div>
-
-      <div class="versions">
-        <div><span class="label">Installed:</span> <span id="installedVersion">–</span></div>
-        <div><span class="label">Latest:</span> <span id="latestVersion">–</span></div>
-      </div>
-      <p id="status" class="status">Ready.</p>
+      <p class="muted">Keeps your addons up to date from GitHub. Each old version is backed up before it is replaced. AddOns folders are set in Settings.</p>
 
       <div class="row">
-        <button id="btnCheck">Check for Update</button>
-        <button id="btnUpdate" class="primary">Update / Install Gear Audit</button>
-        <button id="btnOpen">Open AddOns Folder</button>
+        <button id="btnCheckAll" class="primary">Check All for Updates</button>
+        <button id="btnOpenSettings">Settings…</button>
+      </div>
+      <p id="addonStatus" class="status">Ready.</p>
+
+      <div class="addon-section">
+        <h3>WoW Retail</h3>
+        <div id="addonList-retail"></div>
       </div>
 
-      <label class="field-label" for="log">Log</label>
-      <textarea id="log" readonly></textarea>
+      <div class="addon-section">
+        <h3>WoW Forever</h3>
+        <div id="addonList-forever"></div>
+      </div>
+
+      <div class="row">
+        <button id="btnToggleLog">Show log ▸</button>
+      </div>
+      <div id="logWrap">
+        <label class="field-label" for="log">Log</label>
+        <textarea id="log" readonly></textarea>
+      </div>
       <p class="muted small">If WoW was already running, type <code>/reload</code> in game (or restart WoW) to load the new version.</p>
     </section>
 
@@ -80,9 +86,34 @@
       <h2>About</h2>
       <p>Tyler's WoW Tools, version 0.1.1.</p>
       <p class="muted">The addon itself lives in its own repo: <code>tyler3497/wow-gear-audit</code>. This app is separate on purpose, so new tools and features can be added here without touching the addon.</p>
-      <p class="muted">Updater source: <code>src/core/updater.js</code> — pure Node, tested with <code>npm run test:core</code>.</p>
+      <p class="muted">Updater source: <code>src/core/updater.js</code> — pure Node, tested with <code>npm run test:core</code>. Addons are registered in <code>src/core/addons.js</code> — one entry per addon, grouped by game (retail / forever).</p>
     </section>
   </main>
+</div>
+
+<!-- Settings menu: per-game AddOns folders. Opened from the
+     sidebar or from the Addon Updater view. -->
+<div id="settingsModal" class="modal">
+  <div class="modal-dialog">
+    <h2>Settings</h2>
+    <p class="muted small">Each game has its own AddOns folder. Retail addons go to <code>…\_retail_\Interface\AddOns</code>, Forever addons to <code>…\_forever_\Interface\AddOns</code>.</p>
+
+    <label class="field-label" for="pathRetail">WoW Retail AddOns folder</label>
+    <div class="row">
+      <input id="pathRetail" type="text" spellcheck="false" />
+      <button id="btnBrowseRetail">Browse…</button>
+    </div>
+
+    <label class="field-label" for="pathForever">WoW Forever AddOns folder</label>
+    <div class="row">
+      <input id="pathForever" type="text" spellcheck="false" />
+      <button id="btnBrowseForever">Browse…</button>
+    </div>
+
+    <div class="row modal-actions">
+      <button id="btnCloseSettings" class="primary">Done</button>
+    </div>
+  </div>
 </div>
 <script src="renderer.js"></script>
 </body>
