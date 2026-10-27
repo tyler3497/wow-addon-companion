@@ -4,7 +4,7 @@
 // (updater tests live in updater.test.js; both are run by that
 // script — see the test:core script in package.json.)
 const assert = require('assert');
-const { parseCombatLogText } = require('./deathAnalyzer');
+const { parseCombatLogText, computeAvgIlvl } = require('./deathAnalyzer');
 
 function csv(fields) { return fields.map((f) => (typeof f === 'string' && f.includes(',')) ? `"${f}"` : String(f)).join(','); }
 function line(ts, fields) { return `${ts}  ${csv(fields)}`; }
@@ -61,6 +61,18 @@ assert.ok(death.damageBySpell.some((s) => s.spell === 'Living Venom' && s.avoida
 assert.strictEqual(death.timeInPullSec, 87, 'time into pull (22:15:22 -> 22:16:49)');
 assert.strictEqual(death.killingBlow.hpMax, 800000, 'max HP comes from the advanced params (field 15)');
 assert.strictEqual(death.killingBlow.hpAfter, 0, 'HP after the killing blow is 0');
+assert.strictEqual(death.avgIlvl, 295, 'average ilvl from the single gear entry in the test log');
+assert.strictEqual(death.maxHp, 800000, 'max HP from the killing blow');
+// Shirt (index 3), tabard (index 17) and empty slots do not
+// count toward average ilvl, matching the in-game figure.
+assert.strictEqual(computeAvgIlvl([
+  { itemId: 271528, ilvl: 308 }, { itemId: 272229, ilvl: 298 }, { itemId: 271526, ilvl: 308 },
+  { itemId: 98080, ilvl: 1 }, { itemId: 271531, ilvl: 308 }, { itemId: 272245, ilvl: 295 },
+  { itemId: 268225, ilvl: 308 }, { itemId: 268261, ilvl: 298 }, { itemId: 244576, ilvl: 305 },
+  { itemId: 271529, ilvl: 308 }, { itemId: 272149, ilvl: 295 }, { itemId: 251513, ilvl: 285 },
+  { itemId: 270175, ilvl: 308 }, { itemId: 270168, ilvl: 308 }, { itemId: 156339, ilvl: 305 },
+  { itemId: 268215, ilvl: 308 }, { itemId: 0, ilvl: 0 }, { itemId: 52252, ilvl: 14 },
+]), 303, 'real Feral Druid gear from the raid log averages to 303');
 assert.deepStrictEqual(death.talents, [
   { nodeId: 82088, spellId: 103147, rank: 1 },
   { nodeId: 82091, spellId: 103150, rank: 2 },

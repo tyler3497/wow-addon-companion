@@ -44,6 +44,10 @@ https://github.com/tyler3497/wow-gear-audit
   Die by the Sword, an Arms Warrior does not see Last Stand),
   while a defensive actually cast or active in the log is
   always shown even if it falls outside the spec list.
+- At the top of each death: the player's average ilvl (from
+  COMBATANT_INFO gear, shirt/tabard/empty slots excluded,
+  matching the in-game figure) and max HP (from the killing
+  blow, falling back to the largest max HP in the window).
 - Health bars: the timeline's HP column now shows a bar and
   a percentage of max HP after each hit (green above 50%,
   yellow 25–50%, red below), from the advanced-log HP fields.

@@ -104,6 +104,54 @@ function parseCombatantTalents(rest) {
   return talents;
 }
 
+// Parse the gear list out of a COMBATANT_INFO line. The line
+// holds, in order: [(talent triples)], (a 4-number tuple),
+// [(gear entries)], [(interesting auras)], trailing numbers.
+// A gear entry is (itemId, itemLevel, (enchants), (gems),
+// (bonuses)). Entries are split at depth-0 commas so the
+// nested tuples inside a gear entry do not split it.
+function parseCombatantGear(rest) {
+  // Bracketed lists in the line, in order: [talents],
+  // [gear], [interesting auras]. '[' never nests, so each
+  // list is the text from a '[' to the next ']'.
+  const segments = rest.split('[').slice(1).map((c) => c.split(']')[0]);
+  if (segments.length < 2) return [];
+  const seg = segments[1];
+  const entries = [];
+  let depth = 0;
+  let cur = '';
+  for (const ch of seg) {
+    if (ch === '(') depth++;
+    if (ch === ')') depth--;
+    if (ch === ',' && depth === 0) { entries.push(cur); cur = ''; }
+    else cur += ch;
+  }
+  if (cur) entries.push(cur);
+  const gear = [];
+  for (const e of entries) {
+    const m = /^\((\d+),(\d+),/.exec(e.trim());
+    if (m) gear.push({ itemId: Number(m[1]), ilvl: Number(m[2]) });
+  }
+  return gear;
+}
+
+// Average item level, the way the game reports it: mean of
+// equipped gear, excluding shirt (slot index 3) and tabard
+// (slot index 17) and empty slots. Gear is in inventory-slot
+// order (head, neck, shoulder, shirt, chest, waist, legs,
+// feet, wrist, hands, finger, finger, trinket, trinket,
+// back, main hand, off hand, tabard), verified against a
+// real log: index 3 is a ilvl-1 shirt and index 17 is the
+// tabard, with an empty off-hand for a two-handed weapon.
+function computeAvgIlvl(gear) {
+  if (!gear || !gear.length) return null;
+  const vals = gear
+    .filter((g, i) => i !== 3 && i !== 17 && g.itemId !== 0 && g.ilvl > 0)
+    .map((g) => g.ilvl);
+  if (!vals.length) return null;
+  return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
+}
+
 function parseTimestampMs(line) {
   const m = TS_RE.exec(line);
   if (!m) return null;
@@ -143,6 +191,7 @@ function createAnalyzer(opts) {
   const playerNames = new Map(); // guid -> name
   const playerSpec = new Map(); // guid -> specId
   const playerTalents = new Map(); // guid -> latest [{nodeId, spellId, rank}]
+  const playerGear = new Map(); // guid -> latest [{itemId, ilvl}]
   const recent = new Map(); // guid -> deque [{...}]
   const auraEvents = new Map(); // guid -> [{ms, action, spellId, name, type, source}]
   const lastDefensiveCast = new Map(); // guid -> Map(spellId -> ms)
@@ -231,6 +280,11 @@ function createAnalyzer(opts) {
           playerTalents.set(fl[1], talents);
           if (currentPull) currentPull.talents.set(fl[1], talents);
         }
+        const gear = parseCombatantGear(rest);
+        if (gear.length) {
+          playerGear.set(fl[1], gear);
+          if (currentPull) currentPull.gear.set(fl[1], gear);
+        }
       }
       return;
     }
@@ -251,6 +305,7 @@ function createAnalyzer(opts) {
         groupSize: fl[4], startMs: ms, startIso: new Date(ms).toISOString(),
         success: null, fightMs: null, endIso: null, deaths: [],
         talents: new Map(), // guid -> talents at this pull's start
+        gear: new Map(), // guid -> gear at this pull's start
       };
       pulls.push(currentPull);
       return;
@@ -317,7 +372,13 @@ function createAnalyzer(opts) {
         activeAuras,
         defensives,
         talents: (currentPull && currentPull.talents.get(guid)) || playerTalents.get(guid) || [],
+        avgIlvl: computeAvgIlvl((currentPull && currentPull.gear.get(guid)) || playerGear.get(guid) || null),
+        maxHp: (killing && killing.hpMax) || null,
       };
+      if (!death.maxHp) {
+        const seen = [...damage, ...healing].map((e) => e.hpMax).filter((v) => v);
+        if (seen.length) death.maxHp = Math.max(...seen);
+      }
       if (currentPull) currentPull.deaths.push(death);
       else outsideDeaths.push(death);
       // Compact aura history: keep the pre-death state as the
@@ -449,4 +510,4 @@ async function parseCombatLogFile(filePath, opts, onProgress) {
   }
 }
 
-module.exports = { createAnalyzer, parseCombatLogText, parseCombatLogFile, parseCombatLogStream, splitCsv, suffixStart };
+module.exports = { createAnalyzer, parseCombatLogText, parseCombatLogFile, parseCombatLogStream, splitCsv, suffixStart, parseCombatantGear, computeAvgIlvl };

@@ -510,6 +510,7 @@ function deathDetailHtml(d) {
   const defHtml = defList(d.defensives.active) + '<p><b>Available (estimated):</b></p>' + defList(d.defensives.available) + '<p><b>On cooldown:</b></p>' + defList(d.defensives.onCooldown);
   return `
       <h3 style="color:${classColor(d.playerClass)}">${classIconHtml(d.playerClass, 24)}${esc(d.player)}${d.playerClass ? ` <span class="muted">(${esc(d.playerClass)}${d.playerSpec ? ` • ${esc(d.playerSpec)}` : ''})</span>` : ''}</h3>
+      <p><b>Avg ilvl:</b> ${d.avgIlvl != null ? d.avgIlvl : '–'} · <b>Max HP:</b> ${d.maxHp != null ? num(d.maxHp) : '–'}</p>
       <p class="muted small">${esc(d.encounterName || 'Outside encounter')} · pull ${d.pullIndex || '–'} · ${d.timeInPullSec != null ? fmtTime(d.timeInPullSec) + ' into pull' : esc(d.timeLabel || '')} · ${esc(d.dateLabel || '')} ${esc(d.timeLabel || '')}</p>
       <h4>Killing blow</h4>
       ${kb ? `<p>${spellLinkHtml(kb.spell, kb.spellId)} from ${esc(kb.source)} — <span class="amt-dmg">${num(kb.amount)} damage</span>${kb.overkill > 0 ? `, ${num(kb.overkill)} overkill (${num(kb.effectiveAmount)} effective)` : ''}${kb.hpAfter != null ? ` · HP after: ${hpBarHtml(kb.hpAfter, kb.hpMax)}` : ''}</p>`
