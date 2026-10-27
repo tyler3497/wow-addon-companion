@@ -20,7 +20,7 @@
     "test:core": "node src/core/updater.test.js",
     "dist:win": "electron-builder --win nsis --publish never"
   },
-  "version": "0.1.0",
+  "version": "0.1.1",
   "build": {
     "appId": "com.tyler.gearaudit",
     "productName": "GearAudit",
