@@ -18,4 +18,9 @@ contextBridge.exposeInMainWorld('gearAudit', {
   appDownload: () => ipcRenderer.invoke('app-update:download'),
   appInstall: () => ipcRenderer.invoke('app-update:install'),
   onAppUpdate: (cb) => ipcRenderer.on('app-update:event', (_e, event) => cb(event)),
+  // Custom title bar (frameless window)
+  windowMinimize: () => ipcRenderer.invoke('window:minimize'),
+  windowMaximizeToggle: () => ipcRenderer.invoke('window:maximize-toggle'),
+  windowClose: () => ipcRenderer.invoke('window:close'),
+  onWindowMaxState: (cb) => ipcRenderer.on('window:max-state', (_e, maximized) => cb(maximized)),
 });

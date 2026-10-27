@@ -5,6 +5,20 @@
 const $ = (id) => document.getElementById(id);
 const api = window.gearAudit;
 
+// Custom title bar controls. Double-clicking the bar (not a
+// button) toggles maximize, like a normal title bar would.
+$('btnWinMin').addEventListener('click', () => api.windowMinimize());
+$('btnWinMax').addEventListener('click', () => api.windowMaximizeToggle());
+$('btnWinClose').addEventListener('click', () => api.windowClose());
+$('titlebar').addEventListener('dblclick', (e) => {
+  if (!e.target.closest('#titlebar-controls')) api.windowMaximizeToggle();
+});
+api.onWindowMaxState((maximized) => {
+  // Restore glyph when maximized, plain square when windowed.
+  $('btnWinMax').textContent = maximized ? '❐' : '▢';
+  $('btnWinMax').title = maximized ? 'Restore' : 'Maximize';
+});
+
 function log(msg) {
   const el = $('log');
   const stamp = new Date().toLocaleTimeString();

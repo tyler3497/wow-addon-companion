@@ -1,5 +1,8 @@
 'use strict';
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, dialog, shell } = require('electron');
+// No File/Edit/View menu at all — the app has no use for one, and
+// with a frameless window it would otherwise be the only chrome left.
+Menu.setApplicationMenu(null);
 const path = require('path');
 const fs = require('fs');
 const updater = require('./core/updater');
@@ -26,6 +29,10 @@ function createWindow() {
     height: 620,
     minWidth: 700,
     minHeight: 500,
+    // Frameless: no Windows title bar, no standard min/max/close.
+    // The renderer draws its own title bar (see index.html), styled
+    // like the rest of the app, and drives these via IPC below.
+    frame: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -36,6 +43,15 @@ function createWindow() {
   });
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   mainWindow.on('closed', () => { mainWindow = null; });
+  // Keep the custom maximize/restore glyph in sync when the window
+  // is maximized by other means (double-click, Win+arrow, snap).
+  const sendMaxState = () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('window:max-state', mainWindow.isMaximized());
+    }
+  };
+  mainWindow.on('maximize', sendMaxState);
+  mainWindow.on('unmaximize', sendMaxState);
   // Self-update: auto-check on launch, once the window is ready to
   // receive events. Silent when up to date or when this build has
   // no update feed — the result just lands in the App Updates view,
@@ -88,6 +104,14 @@ ipcMain.handle('updater:update', async (event) => {
 ipcMain.handle('updater:open-folder', () => {
   if (settings.addOnsPath && fs.existsSync(settings.addOnsPath)) shell.openPath(settings.addOnsPath);
 });
+
+// ---- Custom title bar controls (frameless window) ----
+ipcMain.handle('window:minimize', () => { if (mainWindow) mainWindow.minimize(); });
+ipcMain.handle('window:maximize-toggle', () => {
+  if (!mainWindow) return;
+  if (mainWindow.isMaximized()) mainWindow.unmaximize(); else mainWindow.maximize();
+});
+ipcMain.handle('window:close', () => { if (mainWindow) mainWindow.close(); });
 
 // ---- Self-update (the app itself, not the addon) ----
 ipcMain.handle('app-update:current', () => appUpdater.currentVersion());

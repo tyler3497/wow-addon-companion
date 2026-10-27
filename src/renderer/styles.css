@@ -1,6 +1,15 @@
 * { box-sizing: border-box; }
-body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: #18181c; color: #eee; }
-#app { display: flex; height: 100vh; }
+body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: #18181c; color: #eee; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+/* Custom title bar, styled like the sidebar — flat dark, no
+   Windows chrome. The bar drags the window; the buttons don't. */
+#titlebar { height: 36px; flex-shrink: 0; display: flex; align-items: stretch; justify-content: space-between; background: #121215; border-bottom: 1px solid #333; -webkit-app-region: drag; user-select: none; }
+#titlebar-label { display: flex; align-items: center; gap: 8px; padding-left: 14px; font-size: 13px; color: #999; }
+.titlebar-icon { color: #777; font-size: 14px; }
+#titlebar-controls { display: flex; -webkit-app-region: no-drag; }
+#titlebar-controls button { width: 46px; background: transparent; border: none; border-radius: 0; padding: 0; color: #999; font-size: 13px; line-height: 1; cursor: pointer; }
+#titlebar-controls button:hover { background: #2e2e34; color: #eee; }
+#titlebar-controls #btnWinClose:hover { background: #b91c1c; color: #fff; }
+#app { display: flex; flex: 1; min-height: 0; }
 #sidebar { width: 210px; flex-shrink: 0; background: #121215; padding: 20px 16px; border-right: 1px solid #333; }
 #sidebar h1 { margin: 0; font-size: 22px; }
 .subtitle { color: #999; margin: 4px 0 20px; font-size: 13px; }

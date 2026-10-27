@@ -7,6 +7,16 @@
 <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+<!-- Custom title bar: replaces the Windows title bar entirely.
+     The whole bar (except the buttons) drags the window. -->
+<header id="titlebar">
+  <div id="titlebar-label"><span class="titlebar-icon">⚙</span> Gear Audit</div>
+  <div id="titlebar-controls">
+    <button id="btnWinMin" title="Minimize" aria-label="Minimize">—</button>
+    <button id="btnWinMax" title="Maximize" aria-label="Maximize">▢</button>
+    <button id="btnWinClose" title="Close" aria-label="Close">✕</button>
+  </div>
+</header>
 <div id="app">
   <aside id="sidebar">
     <h1>Gear Audit</h1>
