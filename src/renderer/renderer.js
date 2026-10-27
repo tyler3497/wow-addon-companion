@@ -314,6 +314,14 @@ function hpBarHtml(hpAfter, hpMax) {
 
 async function parseDeathLog() {
   if (!deathLogPath) return;
+  // Opening a static log while live-watching would fight
+  // the live updates, so stop watching first.
+  if (liveMode && api.stopLiveWatch) {
+    await api.stopLiveWatch();
+    liveMode = false;
+    $('btnWatchLive').style.display = '';
+    $('btnStopLive').style.display = 'none';
+  }
   const windowSec = Number($('deathWindow').value || 10);
   $('btnPickLog').disabled = true;
   $('btnReparseLog').disabled = true;
@@ -336,6 +344,47 @@ api.onDeathProgress((p) => {
   if (p.done) return;
   $('deathStatus').textContent = `Parsing… ${num(p.lines)} lines read`;
 });
+function liveStatusText() {
+  if (!deathResult) return '';
+  const pulls = deathResult.pulls || [];
+  const lastWipe = [...pulls].reverse().find((p) => p.success === false);
+  const wipeTxt = lastWipe ? ` Latest wipe: ${lastWipe.name} (${lastWipe.deathCount} deaths).` : '';
+  return `Live — watching ${deathLogPath}, ${deathResult.totalPlayerDeaths} deaths in ${pulls.length} pulls.${wipeTxt}`;
+}
+if (api.onDeathLiveUpdate) api.onDeathLiveUpdate((result) => {
+  deathResult = result;
+  liveMode = true;
+  $('deathPath').textContent = deathLogPath;
+  $('deathStatus').textContent = liveStatusText();
+  renderDeathPulls();
+});
+if (api.onDeathLiveStatus) api.onDeathLiveStatus((s) => {
+  if (s.state === 'missing') $('deathStatus').textContent = `Live log not found yet — waiting for ${s.path} to appear.`;
+  else if (s.state === 'error') $('deathStatus').textContent = `Live watch error: ${s.message}`;
+});
+$('btnWatchLive').addEventListener('click', async () => {
+  const p = await api.pickLiveLog();
+  if (!p) return;
+  deathLogPath = p;
+  $('deathPath').textContent = p;
+  $('deathStatus').textContent = 'Loading live log history…';
+  $('btnWatchLive').style.display = 'none';
+  $('btnStopLive').style.display = '';
+  const res = await api.watchLiveLog(p, Number($('deathWindow').value || 10));
+  if (res && !res.ok) {
+    $('deathStatus').textContent = `Could not watch live log: ${res.error}`;
+    $('btnWatchLive').style.display = '';
+    $('btnStopLive').style.display = 'none';
+  }
+});
+$('btnStopLive').addEventListener('click', async () => {
+  await api.stopLiveWatch();
+  liveMode = false;
+  $('btnWatchLive').style.display = '';
+  $('btnStopLive').style.display = 'none';
+  $('deathStatus').textContent = 'Stopped watching live log.';
+  renderDeathPulls();
+});
 
 function deathRowHtml(death) {
   const kb = death.killingBlow;
@@ -352,12 +401,16 @@ function deathRowHtml(death) {
   </div>`;
 }
 
+let liveMode = false;
 function renderDeathPulls() {
   const filter = ($('deathFilter').value || '').trim().toLowerCase();
   const container = $('deathPulls');
   if (!deathResult) { container.innerHTML = ''; return; }
   let html = '';
-  for (const pull of deathResult.pulls) {
+  // Live mode is for checking right after a wipe: newest
+  // pull first, so the wipe you just had is at the top.
+  const pulls = liveMode ? [...deathResult.pulls].reverse() : deathResult.pulls;
+  for (const pull of pulls) {
     const deaths = (pull.deaths || []).filter((d) => !filter || d.player.toLowerCase().includes(filter));
     if (filter && deaths.length === 0) continue;
     const outcome = pull.success === true ? '<span class="badge good">Kill</span>' : pull.success === false ? '<span class="badge bad">Wipe</span>' : '<span class="badge unknown">In progress / truncated</span>';
@@ -512,6 +565,19 @@ function deathDetailHtml(d) {
       <h3 style="color:${classColor(d.playerClass)}">${classIconHtml(d.playerClass, 24)}${esc(d.player)}${d.playerClass ? ` <span class="muted">(${esc(d.playerClass)}${d.playerSpec ? ` • ${esc(d.playerSpec)}` : ''})</span>` : ''}</h3>
       <p><b>Avg ilvl:</b> ${d.avgIlvl != null ? d.avgIlvl : '–'} · <b>Max HP:</b> ${d.maxHp != null ? num(d.maxHp) : '–'}</p>
       <p class="muted small">${esc(d.encounterName || 'Outside encounter')} · pull ${d.pullIndex || '–'} · ${d.timeInPullSec != null ? fmtTime(d.timeInPullSec) + ' into pull' : esc(d.timeLabel || '')} · ${esc(d.dateLabel || '')} ${esc(d.timeLabel || '')}</p>
+      <h4>What would have saved you</h4>
+      ${(() => {
+        const sa = d.saveAnalysis;
+        if (!sa || !sa.available) return `<p class="muted small">${esc((sa && sa.reason) || 'Save analysis is not available for this death.')}</p>`;
+        const savers = sa.candidates.filter((c) => c.wouldSave);
+        const fmt = (c) => c.cheatDeath && c.survivingHp <= 0
+          ? `${spellLinkHtml(c.name, c.id)} — would have prevented this killing blow (cheat death)${c.mitigatedKb ? `, and reduced it by ${num(c.mitigatedKb)}` : ''}`
+          : `${spellLinkHtml(c.name, c.id)} — killing blow ${num(d.killingBlow.amount)} → ${num(Math.max(0, d.killingBlow.amount - c.mitigatedKb))}, leaving you at ${num(c.survivingHp)} HP${c.mitigatedInWindow ? ` (${num(c.mitigatedInWindow)} total mitigated in its window)` : ''}`;
+        if (savers.length) return `<p><b>${savers.map((c) => esc(c.name)).join(', ')} would very likely have saved you from this blow</b> (assuming it was up for the killing blow — later hits could still have killed):</p><ul class="def-list">${savers.map((c) => `<li>${fmt(c)}</li>`).join('')}</ul><p class="muted small">This is an estimate from the log's damage and HP numbers, not a replay. It only judges defensives that were available and unused at death.</p>`;
+        if (!sa.candidates.length) return `<p class="muted small">No available defensive in the database could be quantified for this death — absorbs and unquantified heals are left out rather than guessed.</p>`;
+        const closest = sa.candidates[0];
+        return `<p>No available defensive would have covered this blow. Closest was ${spellLinkHtml(closest.name, closest.id)}, leaving you at ${num(closest.survivingHp)} HP.</p><p class="muted small">Estimate from the log's damage and HP numbers, assuming the defensive was up for the killing blow.</p>`;
+      })()}
       <h4>Killing blow</h4>
       ${kb ? `<p>${spellLinkHtml(kb.spell, kb.spellId)} from ${esc(kb.source)} — <span class="amt-dmg">${num(kb.amount)} damage</span>${kb.overkill > 0 ? `, ${num(kb.overkill)} overkill (${num(kb.effectiveAmount)} effective)` : ''}${kb.hpAfter != null ? ` · HP after: ${hpBarHtml(kb.hpAfter, kb.hpMax)}` : ''}</p>`
         : '<p class="muted">No damaging hit in the window — this death may be from a mechanic with no damage line (e.g. a fall, an instant kill, or a hit just outside the window).</p>'}

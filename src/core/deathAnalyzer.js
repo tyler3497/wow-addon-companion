@@ -262,6 +262,64 @@ function createAnalyzer(opts) {
     return { active, available, onCooldown, playerClass: cls, playerSpec: spec, classKnown: !!cls };
   }
 
+  // "What would have saved you": for each defensive that was
+  // AVAILABLE (not active, not on cooldown) at death, work
+  // out whether pressing it would have survived the killing
+  // blow. Assumes optimal timing — the defensive up for its
+  // duration ending at death (or, for next-hits defensives,
+  // covering the killing blow). This is an estimate, not a
+  // replay: later hits could still have killed, and a
+  // defensive that was actually pressed is not a
+  // counterfactual. Defensives without a quantifiable model
+  // (absorbs, unknown heals) are left out, never guessed.
+  function saveAnalysisForDeath(death, defensives, damage, killing) {
+    if (!killing) return { available: false, reason: 'No damaging killing blow in the window.' };
+    const hpBefore = killing.overkill > 0
+      ? killing.amount - killing.overkill
+      : (killing.hpAfter != null ? killing.hpAfter + killing.amount : null);
+    if (hpBefore == null) return { available: false, reason: 'HP data is missing — this needs advanced logging on.' };
+    const maxHp = killing.hpMax || null;
+    const schoolMatches = (schools, e) => {
+      if (schools === 'all') return true;
+      if (schools === 'melee') return !!e.melee;
+      if (schools === 'physical') return !!e.melee || (e.school != null && (e.school & 1) !== 0);
+      if (schools === 'magic') return !e.melee && e.school != null && (e.school & ~1) !== 0;
+      return true;
+    };
+    const kbEvent = { school: killing.school != null ? killing.school : null, melee: !!killing.melee };
+    const candidates = [];
+    for (const d of defensives.available) {
+      const full = defensiveById(d.id);
+      const model = full && full.save;
+      if (!model) continue;
+      let kbMit = 0;
+      if (model.mitigation && schoolMatches(model.schools || 'all', kbEvent)) kbMit = killing.amount * model.mitigation;
+      let surviving = hpBefore - (killing.amount - kbMit);
+      if (model.hpBonus && maxHp) surviving += model.hpBonus * maxHp;
+      if (model.heal && maxHp) surviving += model.heal * maxHp;
+      // Supporting number: total damage this defensive would
+      // have mitigated over its duration before death.
+      let mitigatedInWindow = 0;
+      if (model.mitigation) {
+        const windowEvents = model.nextHits
+          ? damage.slice(-model.nextHits)
+          : damage.filter((e) => (death.tsMs - e.ms) <= (model.durationSec || 0) * 1000);
+        for (const e of windowEvents) if (schoolMatches(model.schools || 'all', e)) mitigatedInWindow += e.amount * model.mitigation;
+      }
+      candidates.push({
+        id: d.id, name: d.name, cooldownSec: d.cooldownSec,
+        wouldSave: surviving > 0 || !!model.cheatDeath,
+        survivingHp: Math.round(surviving),
+        mitigatedKb: Math.round(kbMit),
+        mitigatedInWindow: Math.round(mitigatedInWindow),
+        cheatDeath: !!model.cheatDeath,
+        note: d.note || null,
+      });
+    }
+    candidates.sort((a, b) => (b.wouldSave - a.wouldSave) || (b.survivingHp - a.survivingHp));
+    return { available: true, hpBeforeKb: hpBefore, maxHp, candidates, best: candidates.find((c) => c.wouldSave) || null };
+  }
+
   function feed(line) {
     if (!line) return;
     const parsed = parseTimestampMs(line);
@@ -357,12 +415,13 @@ function createAnalyzer(opts) {
         timeInPullSec: currentPull ? Math.round((ms - currentPull.startMs) / 1000) : null,
         killingBlow: killing ? {
           spell: killing.spell, spellId: killing.spellId, source: killing.source,
+          school: killing.school != null ? killing.school : null, melee: !!killing.melee,
           amount: killing.amount, overkill: killing.overkill,
           effectiveAmount: killing.overkill > 0 ? killing.amount - killing.overkill : killing.amount,
           hpAfter: killing.hpAfter, hpMax: killing.hpMax || null, avoidable: kbAvoidable,
         } : null,
         verdict: killing ? kbAvoidable : 'unknown',
-        damage: damage.map((e) => ({ tsIso: new Date(e.ms).toISOString(), msBeforeDeath: Math.round((ms - e.ms) / 100) / 10, source: e.source, spell: e.spell, spellId: e.spellId, amount: e.amount, overkill: e.overkill, hpAfter: e.hpAfter, hpMax: e.hpMax || null, avoidable: marks[e.spellId] || 'unknown' })),
+        damage: damage.map((e) => ({ tsIso: new Date(e.ms).toISOString(), msBeforeDeath: Math.round((ms - e.ms) / 100) / 10, source: e.source, spell: e.spell, spellId: e.spellId, amount: e.amount, overkill: e.overkill, hpAfter: e.hpAfter, hpMax: e.hpMax || null, school: e.school != null ? e.school : null, melee: !!e.melee, avoidable: marks[e.spellId] || 'unknown' })),
         healing: healing.map((e) => ({ tsIso: new Date(e.ms).toISOString(), msBeforeDeath: Math.round((ms - e.ms) / 100) / 10, source: e.source, spell: e.spell, spellId: e.spellId, amount: e.amount, overheal: e.overheal || 0, net: e.amount - (e.overheal || 0), hpAfter: e.hpAfter, hpMax: e.hpMax || null })),
         damageBySpell: [...bySpell.values()].sort((a, b) => b.total - a.total),
         healingBySource: [...byHealer.values()].sort((a, b) => b.total - a.total),
@@ -375,9 +434,19 @@ function createAnalyzer(opts) {
         avgIlvl: computeAvgIlvl((currentPull && currentPull.gear.get(guid)) || playerGear.get(guid) || null),
         maxHp: (killing && killing.hpMax) || null,
       };
+      death.saveAnalysis = saveAnalysisForDeath(death, defensives, damage, killing);
       if (!death.maxHp) {
         const seen = [...damage, ...healing].map((e) => e.hpMax).filter((v) => v);
         if (seen.length) death.maxHp = Math.max(...seen);
+      }
+      // If the killing blow itself carried no max HP, rerun
+      // the save analysis with the fallback max HP so
+      // hpBonus/heal defensives can still be judged.
+      if (death.saveAnalysis && !death.saveAnalysis.available) {
+        // keep the reason (missing HP data)
+      } else if (death.saveAnalysis && death.saveAnalysis.maxHp == null && death.maxHp) {
+        const kbWithMax = { ...killing, hpMax: death.maxHp };
+        death.saveAnalysis = saveAnalysisForDeath(death, defensives, damage, kbWithMax);
       }
       if (currentPull) currentPull.deaths.push(death);
       else outsideDeaths.push(death);
@@ -401,6 +470,8 @@ function createAnalyzer(opts) {
               ms, kind: 'damage', source: fl[2],
               spell: isSpell ? fl[10] : 'Melee', spellId: isSpell ? fl[9] : '0',
               amount, overkill: Number.isFinite(overkill) ? overkill : -1,
+              school: Number.isFinite(Number(fl[ss + 3])) ? Number(fl[ss + 3]) : null,
+              melee: !isSpell,
               hpAfter: (advanced && isSpell && Number.isFinite(Number(fl[14]))) ? Number(fl[14]) : null,
               hpMax: (advanced && isSpell && Number.isFinite(Number(fl[15])) && Number(fl[15]) > 0) ? Number(fl[15]) : null,
             });

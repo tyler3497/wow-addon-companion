@@ -63,6 +63,17 @@ assert.strictEqual(death.killingBlow.hpMax, 800000, 'max HP comes from the advan
 assert.strictEqual(death.killingBlow.hpAfter, 0, 'HP after the killing blow is 0');
 assert.strictEqual(death.avgIlvl, 295, 'average ilvl from the single gear entry in the test log');
 assert.strictEqual(death.maxHp, 800000, 'max HP from the killing blow');
+// Save analysis: in this log Shield Wall was already active
+// at death, so it is not a counterfactual. The available
+// ones that would have covered the 40,013 overkill on the
+// 226,661 blow are Rallying Cry (+15% max HP) and Die by
+// the Sword (30% for 8s).
+assert.strictEqual(death.saveAnalysis.available, true, 'save analysis runs with HP data');
+assert.strictEqual(death.saveAnalysis.hpBeforeKb, 186648, 'HP before the killing blow = amount - overkill');
+assert.strictEqual(death.saveAnalysis.best.name, 'Rallying Cry', 'Rallying Cry leaves the most HP');
+assert.strictEqual(death.saveAnalysis.candidates.find((c) => c.name === 'Rallying Cry').survivingHp, 79987, 'Rallying Cry: 186648 - 226661 + 120000');
+assert.ok(death.saveAnalysis.candidates.some((c) => c.name === 'Die by the Sword' && c.wouldSave), 'Die by the Sword also saves');
+assert.ok(!death.saveAnalysis.candidates.some((c) => c.name === 'Shield Wall'), 'an already-active defensive is not a counterfactual');
 // Shirt (index 3), tabard (index 17) and empty slots do not
 // count toward average ilvl, matching the in-game figure.
 assert.strictEqual(computeAvgIlvl([

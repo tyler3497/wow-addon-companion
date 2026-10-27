@@ -44,6 +44,21 @@ https://github.com/tyler3497/wow-gear-audit
   Die by the Sword, an Arms Warrior does not see Last Stand),
   while a defensive actually cast or active in the log is
   always shown even if it falls outside the spec list.
+- "What would have saved you": for each death, the app
+  judges every defensive that was available and unused at
+  death against the killing blow (mitigation over its
+  duration, max-HP bonuses, heals as a share of max HP, and
+  cheat deaths), assuming it was up for the blow, and names
+  the ones that would have left the player alive. It is an
+  estimate, not a replay — later hits could still have
+  killed — and defensives that cannot be quantified
+  (absorbs, unknown heals) are left out, never guessed.
+- Live log watching: "Watch live log…" tails the game's
+  WoWCombatLog.txt while you raid (it defaults to the
+  Logs folder next to your retail install when it can find
+  it), streams in the night's history first, then shows new
+  deaths within a second or two of a wipe, newest pull
+  first. If WoW truncates the log, watching resets cleanly.
 - At the top of each death: the player's average ilvl (from
   COMBATANT_INFO gear, shirt/tabard/empty slots excluded,
   matching the in-game figure) and max HP (from the killing
