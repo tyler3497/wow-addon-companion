@@ -50,7 +50,8 @@
     "publish": {
       "provider": "github",
       "owner": "tyler3497",
-      "repo": "wow-addon-companion"
+      "repo": "wow-addon-companion",
+      "releaseType": "release"
     }
   }
 }
