@@ -189,6 +189,9 @@ ipcMain.handle('death:open-spell', (_e, spellId) => {
 });
 // Spell info for hover tooltips: Wowhead's public tooltip
 // endpoint returns name, icon and tooltip HTML for a spell ID.
+// Verified 2026-10-27: the www.wowhead.com tooltip URL 404s,
+// but nether.wowhead.com/tooltip/spell=<id>?dataEnv=1 returns
+// JSON (name, icon, tooltip) — e.g. Divine Shield (642).
 // Results are cached in settings so a spell is only fetched
 // once; a failure returns null (never a guessed description)
 // and is not cached, so it can be retried later.
@@ -206,7 +209,7 @@ ipcMain.handle('spell:lookup', async (_e, spellId) => {
     req.on('error', () => resolve(null));
     req.setTimeout(8000, () => { req.destroy(); resolve(null); });
   });
-  const data = await fetchJson(`https://www.wowhead.com/tooltip/spell=${spellId}`);
+  const data = await fetchJson(`https://nether.wowhead.com/tooltip/spell=${spellId}?dataEnv=1`);
   if (!data || !data.name) return null;
   const desc = String(data.tooltip || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 400);
   const info = { name: data.name, icon: data.icon || null, desc: desc || null };
