@@ -183,18 +183,39 @@ async function check() {
     }
     return { available: false, version: current };
   } catch (err) {
-    // Most common cause: this build has no update feed because it
-    // was packaged with electron-packager instead of electron-builder.
-    // If the authoritative API says a release exists, don't hide
-    // behind the feed error either.
+    const detail = err && err.message ? err.message : String(err);
+    // NEVER relabel an unknown failure as "no feed" — that was
+    // the 0.1.1 bug: every updater error (404 for latest.yml,
+    // feed parse failure, network failure, ...) was reported
+    // as "this build has no update feed", which is only true
+    // when the packaged build genuinely has no update config
+    // (e.g. an electron-packager folder build). Anything else
+    // must surface its real message, so the next failure can
+    // actually be diagnosed instead of guessed at.
+    const genuinelyNoFeed = /app-update\.yml|no update feed|ERR_UPDATER_NO_PUBLISHED_VERSIONS|provider.*not.*found/i.test(detail)
+      && !/latest\.yml|channel file|404/i.test(detail);
     if (freshIsNewer) {
-      return { available: true, version: fresh, feedLag: true, message: `Version ${fresh} is published, but the update feed hasn't caught up yet. Press Download and it will retry in this same session — no restart needed.` };
+      return {
+        available: true,
+        version: fresh,
+        feedLag: true,
+        message: `Version ${fresh} is published, but the update check failed with: ${detail}. Press Download and it will retry in this same session — no restart needed.`,
+        detail,
+      };
+    }
+    if (genuinelyNoFeed) {
+      return {
+        available: false,
+        reason: 'no-feed',
+        message: 'This build has no update feed (it was not installed from a GitHub Release). Download the latest release from github.com/tyler3497/wow-addon-companion/releases instead.',
+        detail,
+      };
     }
     return {
       available: false,
-      reason: 'no-feed',
-      message: 'This build has no update feed (it was not installed from a GitHub Release). Download the latest release from github.com/tyler3497/wow-addon-companion/releases instead.',
-      detail: err && err.message ? err.message : String(err),
+      reason: 'check-failed',
+      message: `App update check failed: ${detail}`,
+      detail,
     };
   }
 }

@@ -220,6 +220,9 @@ $('btnAppCheck').addEventListener('click', async () => {
       setAppStatus(res.message);
     } else if (res.reason === 'no-feed') {
       setAppStatus(res.message);
+    } else if (res.reason === 'check-failed') {
+      // Show the real updater error, not a generic label.
+      setAppStatus(res.message);
     } else {
       setAppStatus(`You're up to date (app ${res.version}).`);
     }
