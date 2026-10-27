@@ -12,6 +12,12 @@ contextBridge.exposeInMainWorld('gearAudit', {
   update: (addonId) => ipcRenderer.invoke('updater:update', addonId),
   openFolder: (game) => ipcRenderer.invoke('updater:open-folder', game),
   onLog: (cb) => ipcRenderer.on('updater:log', (_e, msg) => cb(msg)),
+  // Death Analyzer
+  pickDeathLog: () => ipcRenderer.invoke('dialog:pick-log'),
+  parseDeathLog: (filePath, windowSec) => ipcRenderer.invoke('death:parse-log', filePath, windowSec),
+  getAvoidableMarks: () => ipcRenderer.invoke('death:marks-get'),
+  markAvoidable: (spellId, spellName, status) => ipcRenderer.invoke('death:mark-avoidable', spellId, spellName, status),
+  onDeathProgress: (cb) => ipcRenderer.on('death:progress', (_e, p) => cb(p)),
   // Self-update
   appCurrentVersion: () => ipcRenderer.invoke('app-update:current'),
   appCheck: () => ipcRenderer.invoke('app-update:check'),

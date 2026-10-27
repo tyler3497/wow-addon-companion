@@ -20,6 +20,29 @@ https://github.com/tyler3497/wow-gear-audit
 - If WoW was already running, type `/reload` in game (or restart
   WoW) to load the new version.
 
+### 2. Death Analyzer
+- Open a `WoWCombatLog.txt` (or a zip of one) from
+  `…\World of Warcraft\_retail_\Logs\` — turn logging on in game
+  with `/combatlog` first, and Advanced Combat Logging for
+  HP-after-hit on every line.
+- Lists every pull (encounter, wipe/kill, duration) and every
+  player death in it, including deaths outside encounters.
+- Click a death for: the killing blow (amount, overkill,
+  effective damage), the damage timeline and damage grouped by
+  spell in the window before death (default 10s, 5/10/15s
+  selectable), healing gross vs net by source, auras active at
+  death, and defensives split into active / available
+  (estimated from last cast + cooldown) / on cooldown.
+- "Avoidable" is never guessed. Every spell starts unknown;
+  mark spells Avoidable/Unavoidable from Blizzard's own damage
+  meter and the marks are saved and applied to future logs —
+  a death is only called avoidable when its killing blow is
+  marked so.
+- Core parser: `src/core/deathAnalyzer.js` (pure Node, streams
+  the file — a 187 MB / 648k-line raid log parses in ~6s),
+  defensive database: `src/core/defensives.js`,
+  tests: `src/core/deathAnalyzer.test.js`.
+
 ## Self-updates (the app updating itself)
 
 Best way, and the one this app uses: **GitHub Releases +
@@ -110,4 +133,7 @@ needed.
 - `src/preload.js` — the only bridge between window and Node
 - `src/core/updater.js` — updater logic (download, extract, replace, backup)
 - `src/core/updater.test.js` — headless core test
+- `src/core/deathAnalyzer.js` — combat log parser (pulls, deaths, timelines, defensives)
+- `src/core/defensives.js` — defensive cooldown database
+- `src/core/deathAnalyzer.test.js` — headless parser test
 - `src/renderer/` — HTML, CSS, and UI logic

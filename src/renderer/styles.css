@@ -55,3 +55,28 @@ code { background: #2a2a30; padding: 2px 5px; border-radius: 4px; }
 .modal.open { display: flex; }
 .modal-dialog { background: #1e1e24; border: 1px solid #444; border-radius: 10px; padding: 24px 28px; width: 600px; max-width: 92vw; max-height: 92vh; overflow-y: auto; }
 .modal-actions { margin-top: 24px; }
+/* Death Analyzer */
+.inline-label { margin: 0 0 0 8px; }
+#deathWindow { background: #28282e; color: #fff; border: 1px solid #444; border-radius: 6px; padding: 8px 10px; font-size: 14px; }
+.pull-card { background: #1e1e24; border: 1px solid #333; border-radius: 8px; padding: 14px 16px; margin: 16px 0; }
+.pull-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.pull-head h4 { margin: 0; }
+.death-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.death-row { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; text-align: left; width: 100%; }
+.death-player { font-weight: 600; }
+.death-time { color: #999; font-size: 13px; }
+.death-kb { color: #ddd; font-size: 13px; flex: 1; min-width: 220px; }
+.badge { font-size: 12px; padding: 3px 8px; border-radius: 10px; white-space: nowrap; }
+.badge.good { background: #1e3a1e; color: #96dc96; }
+.badge.bad { background: #3a1e1e; color: #e07a7a; }
+.badge.unknown { background: #2a2a30; color: #aaa; }
+.death-detail { background: #1e1e24; border: 1px solid #444; border-radius: 8px; padding: 18px 20px; margin-top: 20px; }
+.death-detail h3 { margin-top: 0; }
+.death-detail h4 { margin: 22px 0 8px; }
+.death-table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 8px 0; }
+.death-table th { text-align: left; color: #999; border-bottom: 1px solid #444; padding: 6px 8px; }
+.death-table td { border-bottom: 1px solid #2a2a30; padding: 6px 8px; vertical-align: top; }
+.death-table button { padding: 4px 8px; font-size: 12px; margin-right: 4px; }
+.def-list { margin: 4px 0 12px; padding-left: 20px; font-size: 14px; }
+.death-detail details { margin-top: 12px; }
+.death-detail summary { cursor: pointer; color: #bbb; }

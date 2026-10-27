@@ -7,6 +7,7 @@ const path = require('path');
 const fs = require('fs');
 const updater = require('./core/updater');
 const { ADDONS, getAddon } = require('./core/addons');
+const { parseCombatLogFile } = require('./core/deathAnalyzer');
 const appUpdater = require('./core/appUpdater');
 
 let mainWindow = null;
@@ -156,6 +157,41 @@ ipcMain.handle('window:maximize-toggle', () => {
   if (mainWindow.isMaximized()) mainWindow.unmaximize(); else mainWindow.maximize();
 });
 ipcMain.handle('window:close', () => { if (mainWindow) mainWindow.close(); });
+
+// ---- Death Analyzer ----
+// Reads a WoWCombatLog.txt (or a zip containing one) that the
+// user picks, parses it in the main process, and returns the
+// structured pulls/deaths. Avoidable marks are the user's own
+// classifications (from Blizzard's damage meter), stored in
+// settings — the parser never guesses them.
+ipcMain.handle('dialog:pick-log', async () => {
+  const res = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openFile'],
+    title: 'Pick a combat log (WoWCombatLog.txt, or a zip of one)',
+    filters: [
+      { name: 'Combat logs', extensions: ['txt', 'zip'] },
+      { name: 'All files', extensions: ['*'] },
+    ],
+  });
+  if (res.canceled || !res.filePaths[0]) return null;
+  return res.filePaths[0];
+});
+ipcMain.handle('death:parse-log', async (event, filePath, windowSec) => {
+  const marks = (settings.avoidableMarks && typeof settings.avoidableMarks === 'object') ? settings.avoidableMarks : {};
+  return parseCombatLogFile(filePath, { windowSec: windowSec || 10, avoidableMarks: marks }, (p) => {
+    if (event.sender && !event.sender.isDestroyed()) event.sender.send('death:progress', p);
+  });
+});
+ipcMain.handle('death:marks-get', () => {
+  return (settings.avoidableMarks && typeof settings.avoidableMarks === 'object') ? settings.avoidableMarks : {};
+});
+ipcMain.handle('death:mark-avoidable', (_e, spellId, spellName, status) => {
+  if (!settings.avoidableMarks || typeof settings.avoidableMarks !== 'object') settings.avoidableMarks = {};
+  if (status === 'unknown' || !status) delete settings.avoidableMarks[String(spellId)];
+  else settings.avoidableMarks[String(spellId)] = { name: spellName || '', status };
+  saveSettings();
+  return settings.avoidableMarks;
+});
 
 // ---- Self-update (the app itself, not the addon) ----
 ipcMain.handle('app-update:current', () => appUpdater.currentVersion());
