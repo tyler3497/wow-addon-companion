@@ -1,0 +1,30 @@
+* { box-sizing: border-box; }
+body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: #18181c; color: #eee; }
+#app { display: flex; height: 100vh; }
+#sidebar { width: 210px; flex-shrink: 0; background: #121215; padding: 20px 16px; border-right: 1px solid #333; }
+#sidebar h1 { margin: 0; font-size: 22px; }
+.subtitle { color: #999; margin: 4px 0 20px; font-size: 13px; }
+#nav { display: flex; flex-direction: column; gap: 8px; }
+.nav-btn { text-align: left; background: transparent; color: #ddd; border: 1px solid transparent; border-radius: 8px; padding: 10px 12px; font-size: 15px; cursor: pointer; }
+.nav-btn:hover { background: #222; }
+.nav-btn.active { background: #2b3a55; border-color: #3d5a8a; color: #fff; }
+.sidebar-note { color: #777; font-size: 12px; margin-top: 28px; line-height: 1.5; }
+#main { flex: 1; padding: 28px 32px; overflow-y: auto; }
+.view { display: none; }
+.view.active { display: block; }
+h2 { margin-top: 0; }
+.muted { color: #aaa; }
+.small { font-size: 13px; }
+.field-label { display: block; margin: 18px 0 6px; font-size: 13px; color: #bbb; }
+.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+input[type="text"] { flex: 1; min-width: 280px; background: #28282e; color: #fff; border: 1px solid #444; border-radius: 6px; padding: 9px 10px; font-size: 14px; }
+button { background: #2e2e34; color: #fff; border: 1px solid #555; border-radius: 6px; padding: 9px 16px; font-size: 14px; cursor: pointer; }
+button:hover:not(:disabled) { background: #3a3a42; }
+button:disabled { opacity: 0.5; cursor: default; }
+button.primary { background: #2b5aa6; border-color: #3d6fc4; }
+button.primary:hover:not(:disabled) { background: #3568b8; }
+.versions { display: flex; gap: 32px; margin: 20px 0 4px; font-size: 16px; }
+.label { color: #999; }
+.status { color: #96dc96; min-height: 20px; }
+#log { width: 100%; height: 220px; background: #0c0c0e; color: #ddd; border: 1px solid #333; border-radius: 6px; padding: 10px; font-family: Consolas, monospace; font-size: 13px; resize: vertical; }
+code { background: #2a2a30; padding: 2px 5px; border-radius: 4px; }

@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Gear Audit</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div id="app">
+  <aside id="sidebar">
+    <h1>Gear Audit</h1>
+    <p class="subtitle">WoW Addon Companion</p>
+    <nav id="nav">
+      <!-- Adding a feature: add a nav button here, a matching
+           <section> below, and a handler in renderer.js. Each
+           feature's real work lives in src/core/<feature>.js. -->
+      <button class="nav-btn active" data-view="updater">Updater</button>
+      <button class="nav-btn" data-view="about">About</button>
+    </nav>
+    <p class="sidebar-note">More features can plug in here later — the updater is just the first one.</p>
+  </aside>
+
+  <main id="main">
+    <section id="view-updater" class="view active">
+      <h2>Addon Updater</h2>
+      <p class="muted">Keeps Gear Audit up to date from GitHub. Your old version is backed up before it is replaced.</p>
+
+      <label class="field-label" for="addonsPath">WoW AddOns folder</label>
+      <div class="row">
+        <input id="addonsPath" type="text" spellcheck="false" />
+        <button id="btnBrowse">Browse…</button>
+      </div>
+
+      <div class="versions">
+        <div><span class="label">Installed:</span> <span id="installedVersion">–</span></div>
+        <div><span class="label">Latest:</span> <span id="latestVersion">–</span></div>
+      </div>
+      <p id="status" class="status">Ready.</p>
+
+      <div class="row">
+        <button id="btnCheck">Check for Update</button>
+        <button id="btnUpdate" class="primary">Update / Install Gear Audit</button>
+        <button id="btnOpen">Open AddOns Folder</button>
+      </div>
+
+      <label class="field-label" for="log">Log</label>
+      <textarea id="log" readonly></textarea>
+      <p class="muted small">If WoW was already running, type <code>/reload</code> in game (or restart WoW) to load the new version.</p>
+    </section>
+
+    <section id="view-about" class="view">
+      <h2>About</h2>
+      <p>Gear Audit companion app, version 1.0.0.</p>
+      <p class="muted">The addon itself lives in its own repo: <code>tyler3497/wow-gear-audit</code>. This companion app is separate on purpose, so new tools and features can be added here without touching the addon.</p>
+      <p class="muted">Updater source: <code>src/core/updater.js</code> — pure Node, tested with <code>npm run test:core</code>.</p>
+    </section>
+  </main>
+</div>
+<script src="renderer.js"></script>
+</body>
+</html>
