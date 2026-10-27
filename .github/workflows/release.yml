@@ -67,6 +67,19 @@ jobs:
       # header: it creates a second release for the same tag).
       # Attach to the Windows job's release with gh instead.
       - run: npx electron-builder --linux AppImage --publish never
+      # v0.1.5 lesson: the builder's AppImage filename drifted
+      # (npm ci floats electron-builder) from
+      # Tylers-WoW-Tools-<ver>.AppImage to
+      # Tylers.WoW.Tools-<ver>.AppImage, while latest-linux.yml
+      # still points at the hyphenated name — a 404 for the
+      # Linux updater. Rename to the manifest's name before
+      # uploading so file and feed always agree.
+      - run: |
+          ver="${{ github.ref_name }}"; ver="${ver#v}"
+          for f in dist/*.AppImage; do
+            [ "$f" != "dist/Tylers-WoW-Tools-$ver.AppImage" ] && mv "$f" "dist/Tylers-WoW-Tools-$ver.AppImage"
+          done
+          ls dist/
       - run: gh release upload "${{ github.ref_name }}" dist/*.AppImage dist/latest-linux.yml --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -97,6 +110,17 @@ jobs:
               sys.exit(f"release for {tag} has no Windows installer (have {sorted(names)})")
           if not any(n.endswith(".AppImage") for n in names):
               sys.exit(f"release for {tag} has no AppImage (have {sorted(names)})")
+          # The updater feeds must point at assets that
+          # actually exist: v0.1.5 shipped a latest-linux.yml
+          # whose url 404'd because the AppImage asset name
+          # had drifted. Check both manifests' urls.
+          import re, urllib.request
+          for manifest, label in [("latest.yml", "Windows"), ("latest-linux.yml", "Linux")]:
+              url = f"https://github.com/tyler3497/wow-addon-companion/releases/download/{tag}/{manifest}"
+              text = urllib.request.urlopen(url).read().decode()
+              m = re.search(r"^\s+- url: (.+)$", text, re.M)
+              if not m or m.group(1).strip() not in names:
+                  sys.exit(f"{label} updater feed {manifest} points at {m.group(1).strip() if m else 'nothing'}, which is not an asset (have {sorted(names)})")
           print(f"release {matches[0]['id']} for {tag} OK: {sorted(names)}")
           PY
         env:
