@@ -20,9 +20,8 @@
  *   repo   — GitHub "owner/repo" the addon is downloaded from
  *   branch — branch to download (usually 'main')
  *
- * Only one addon is registered for now: Gear Audit (retail).
- * The WoW Forever section is intentionally empty until a
- * Forever addon is registered here.
+ * Gear Audit (retail) and Gear Audit Forever are both registered;
+ * each renders in its own game's section of the Addon Updater.
  */
 const ADDONS = [
   {
@@ -32,6 +31,15 @@ const ADDONS = [
     folder: 'GearAudit',
     toc: 'GearAudit.toc',
     repo: 'tyler3497/wow-gear-audit',
+    branch: 'main',
+  },
+  {
+    id: 'gear-audit-forever',
+    name: 'Gear Audit Forever',
+    game: 'forever',
+    folder: 'GearAudit',
+    toc: 'GearAudit.toc',
+    repo: 'tyler3497/wow-gear-audit-forever',
     branch: 'main',
   },
 ];
