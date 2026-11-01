@@ -55,6 +55,21 @@
       <div class="addon-section">
         <h3>WoW Forever</h3>
         <div id="addonList-forever"></div>
+        <div class="addon-card">
+          <div class="addon-card-head">
+            <h4>Quest Database</h4>
+            <span id="questDbStatus" class="addon-status">–</span>
+          </div>
+          <p class="muted small">The quest data inside Forever Quest Guide, updated on its own from the forever-quests repo (checked against the manifest, SHA-256 verified). Needs the addon installed first.</p>
+          <div class="versions">
+            <div><span class="label">Installed:</span> <span id="questDbInstalled">–</span></div>
+            <div><span class="label">Latest:</span> <span id="questDbLatest">–</span></div>
+          </div>
+          <div class="row">
+            <button id="btnQuestDbCheck">Check</button>
+            <button id="btnQuestDbUpdate" class="primary">Update Database</button>
+          </div>
+        </div>
       </div>
 
       <div class="row">

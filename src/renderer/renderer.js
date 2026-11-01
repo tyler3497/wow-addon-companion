@@ -143,6 +143,59 @@ async function updateOneAddon(addon) {
 
 $('btnCheckAll').addEventListener('click', checkAllAddons);
 
+// ---- Quest Database (inside Forever Quest Guide) ----
+// Same check/update shape as the addon cards, but the payload is
+// just QuestDB.lua from the forever-quests repo — verified against
+// the manifest's SHA-256 before anything is written.
+async function checkQuestDb() {
+  $('btnQuestDbCheck').disabled = true;
+  $('questDbStatus').textContent = 'Checking…';
+  $('questDbStatus').className = 'addon-status';
+  try {
+    const r = await api.checkQuestDb();
+    $('questDbInstalled').textContent = r.installed;
+    $('questDbLatest').textContent = r.latest || 'could not reach GitHub';
+    if (r.error) {
+      $('questDbStatus').textContent = `Check failed: ${r.error}`;
+      $('questDbStatus').className = 'addon-status error';
+    } else if (r.installed === 'not installed') {
+      $('questDbStatus').textContent = 'Quest Guide not installed';
+      $('questDbStatus').className = 'addon-status update';
+    } else if (r.updateAvailable) {
+      $('questDbStatus').textContent = `Update available: ${r.installed} → ${r.latest}`;
+      $('questDbStatus').className = 'addon-status update';
+    } else {
+      $('questDbStatus').textContent = 'Up to date';
+    }
+    log(r.error ? `[Quest Database] Check failed: ${r.error}` : `[Quest Database] Installed ${r.installed}, latest ${r.latest}.`);
+  } catch (e) {
+    $('questDbStatus').textContent = `Check failed: ${e.message}`;
+    $('questDbStatus').className = 'addon-status error';
+  } finally {
+    $('btnQuestDbCheck').disabled = false;
+  }
+}
+
+async function updateQuestDb() {
+  $('btnQuestDbUpdate').disabled = true;
+  $('questDbStatus').textContent = 'Updating…';
+  $('questDbStatus').className = 'addon-status';
+  try {
+    const version = await api.updateQuestDb();
+    $('addonStatus').textContent = `Quest database updated to ${version}.`;
+    log(`Done — quest database ${version} is installed.`);
+  } catch (e) {
+    $('addonStatus').textContent = `Quest database update failed: ${e.message}`;
+    log(`[Quest Database] FAILED: ${e.message}`);
+  } finally {
+    $('btnQuestDbUpdate').disabled = false;
+    await checkQuestDb();
+  }
+}
+
+$('btnQuestDbCheck').addEventListener('click', checkQuestDb);
+$('btnQuestDbUpdate').addEventListener('click', updateQuestDb);
+
 // Log is hidden by default — the toggle reveals it.
 $('btnToggleLog').addEventListener('click', () => {
   const wrap = $('logWrap');

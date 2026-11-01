@@ -42,6 +42,15 @@ const ADDONS = [
     repo: 'tyler3497/wow-gear-audit-forever',
     branch: 'main',
   },
+  {
+    id: 'forever-quest-guide',
+    name: 'Forever Quest Guide',
+    game: 'forever',
+    folder: 'ForeverQuestGuide',
+    toc: 'ForeverQuestGuide.toc',
+    repo: 'tyler3497/forever-quest-guide',
+    branch: 'main',
+  },
 ];
 
 function getAddon(id) {

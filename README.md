@@ -19,6 +19,12 @@ https://github.com/tyler3497/wow-gear-audit
   and installs the new one.
 - If WoW was already running, type `/reload` in game (or restart
   WoW) to load the new version.
+- The updater also manages WoW Forever addons (Gear Audit Forever,
+  Forever Quest Guide) in the `_forever_` AddOns folder, and the
+  Quest Database card there updates just the quest data inside
+  Forever Quest Guide: it checks the forever-quests manifest,
+  downloads `QuestDB.lua`, verifies its SHA-256 against the
+  manifest, and installs it over the old file (keeping a `.bak`).
 
 ### 2. Death Analyzer
 - Open a `WoWCombatLog.txt` (or a zip of one) from

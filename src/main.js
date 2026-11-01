@@ -6,6 +6,7 @@ Menu.setApplicationMenu(null);
 const path = require('path');
 const fs = require('fs');
 const updater = require('./core/updater');
+const questDb = require('./core/questDb');
 const { ADDONS, getAddon } = require('./core/addons');
 const { parseCombatLogFile, createAnalyzer } = require('./core/deathAnalyzer');
 const { watchLogFile } = require('./core/logWatcher');
@@ -150,6 +151,20 @@ ipcMain.handle('updater:update', async (event, addonId) => {
 ipcMain.handle('updater:open-folder', (_e, game) => {
   const p = addOnsPathFor(game);
   if (p && fs.existsSync(p)) shell.openPath(p);
+});
+// Quest database: the data file inside Forever Quest Guide, updated
+// on its own from the forever-quests repo (see src/core/questDb.js).
+// Check reads the installed file's version and the live manifest;
+// update downloads QuestDB.lua, verifies its SHA-256, then installs.
+ipcMain.handle('questdb:check', async () => questDb.checkQuestDb(addOnsPathFor('forever')));
+ipcMain.handle('questdb:update', async (event) => {
+  const log = (msg) => event.sender.send('updater:log', msg);
+  appUpdater.setAddonUpdateRunning(true);
+  try {
+    return await questDb.updateQuestDb(addOnsPathFor('forever'), log);
+  } finally {
+    appUpdater.setAddonUpdateRunning(false);
+  }
 });
 
 // ---- Custom title bar controls (frameless window) ----

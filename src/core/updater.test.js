@@ -12,7 +12,7 @@ const { getAddon, addonsForGame } = require('./addons');
 (async () => {
   // Registry: Gear Audit (retail) and Gear Audit Forever.
   assert.strictEqual(addonsForGame('retail').length, 1);
-  assert.strictEqual(addonsForGame('forever').length, 1);
+  assert.strictEqual(addonsForGame('forever').length, 2);
   const gearAudit = getAddon('gear-audit');
   assert.ok(gearAudit, 'gear-audit should be registered');
   assert.strictEqual(gearAudit.game, 'retail');
@@ -21,6 +21,11 @@ const { getAddon, addonsForGame } = require('./addons');
   assert.strictEqual(gearAuditForever.game, 'forever');
   assert.strictEqual(gearAuditForever.folder, 'GearAudit');
   assert.strictEqual(gearAuditForever.repo, 'tyler3497/wow-gear-audit-forever');
+  const questGuide = getAddon('forever-quest-guide');
+  assert.ok(questGuide, 'forever-quest-guide should be registered');
+  assert.strictEqual(questGuide.game, 'forever');
+  assert.strictEqual(questGuide.folder, 'ForeverQuestGuide');
+  assert.strictEqual(questGuide.repo, 'tyler3497/forever-quest-guide');
 
   const latest = await core.getLatestVersion(gearAudit);
   console.log('latest from GitHub:', latest);
@@ -48,15 +53,17 @@ const { getAddon, addonsForGame } = require('./addons');
   // the wow-gear-audit-forever repo, into a mock Forever folder.
   const latestForever = await core.getLatestVersion(gearAuditForever);
   console.log('latest Forever from GitHub:', latestForever);
-  assert.strictEqual(latestForever, '1.0.0');
+  // Pinned-version assertions go stale on every addon release; assert
+  // the shape and that the install path lands exactly that version.
+  assert.ok(/^\d+\.\d+\.\d+$/.test(latestForever), 'latest Forever version should parse');
   const mockForever = fs.mkdtempSync(path.join(os.tmpdir(), 'mock-addons-forever-'));
   const oldForeverDir = path.join(mockForever, 'GearAudit');
   fs.mkdirSync(oldForeverDir, { recursive: true });
   fs.writeFileSync(path.join(oldForeverDir, 'GearAudit.toc'), '## Version: 0.9.0\nAudit.lua\n');
   assert.strictEqual(core.getInstalledVersion(mockForever, gearAuditForever), '0.9.0');
   const installedForever = await core.updateAddon(mockForever, gearAuditForever, () => {});
-  assert.strictEqual(installedForever, '1.0.0');
-  assert.strictEqual(core.getInstalledVersion(mockForever, gearAuditForever), '1.0.0');
+  assert.strictEqual(installedForever, latestForever);
+  assert.strictEqual(core.getInstalledVersion(mockForever, gearAuditForever), latestForever);
   assert.ok(fs.existsSync(path.join(mockForever, 'GearAudit', 'Audit.lua')));
   assert.ok(fs.existsSync(path.join(mockForever, 'GearAudit', 'Core.lua')));
   assert.ok(fs.existsSync(path.join(mockForever, 'GearAudit', 'UI.lua')));

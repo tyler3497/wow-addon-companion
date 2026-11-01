@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld('gearAudit', {
   checkAllAddons: () => ipcRenderer.invoke('updater:check-all'),
   update: (addonId) => ipcRenderer.invoke('updater:update', addonId),
   openFolder: (game) => ipcRenderer.invoke('updater:open-folder', game),
+  checkQuestDb: () => ipcRenderer.invoke('questdb:check'),
+  updateQuestDb: () => ipcRenderer.invoke('questdb:update'),
   onLog: (cb) => ipcRenderer.on('updater:log', (_e, msg) => cb(msg)),
   // Death Analyzer
   pickDeathLog: () => ipcRenderer.invoke('dialog:pick-log'),
